@@ -957,11 +957,8 @@ async def stop_recording_endpoint():
         weight = str(recording_user_data['weight'])
         gender = recording_user_data['gender']
 
-        name_part = name[:3].upper() if len(name) >=3 else name.upper().ljust(3, 'X')
-        surname_part = surname[:3].upper() if len(surname) >=3 else surname.upper().ljust(3, 'X')
-
-        filename_left = f"{name_part}{surname_part}S{shoe_size}H{height}W{weight}{gender[0].upper()}_Left.csv"
-        filename_right = f"{name_part}{surname_part}S{shoe_size}H{height}W{weight}{gender[0].upper()}_Right.csv"
+        filename_left = f"{name}{surname}S{shoe_size}H{height}W{weight}{gender[0].upper()}_Left.csv"
+        filename_right = f"{name}{surname}S{shoe_size}H{height}W{weight}{gender[0].upper()}_Right.csv"
         filepath_left = os.path.join(RECORDINGS_DIR, filename_left)
         filepath_right = os.path.join(RECORDINGS_DIR, filename_right)
 
@@ -981,7 +978,7 @@ async def stop_recording_endpoint():
                 writer_right.writerow(entry)
         print(f"Right recording saved to {filepath_right}")
 
-        combined_filename = f"{name_part}{surname_part}S{shoe_size}H{height}W{weight}{gender[0].upper()}_Combined.csv"
+        combined_filename = f"{name}{surname}S{shoe_size}H{height}W{weight}{gender[0].upper()}_Combined.csv"
         combined_filepath = os.path.join(RECORDINGS_DIR, combined_filename)
 
         left_data = []
