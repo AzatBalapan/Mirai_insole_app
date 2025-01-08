@@ -538,6 +538,66 @@ async def disconnect_all_clients():
             print(f"Disconnected from {address}")
     connected_clients.clear()
 
+@app.post("/exit_app")
+async def exit_app():
+    # 1) Disconnect all BLE clients
+    await disconnect_all_clients()
+
+    # 2) Immediately kill the process
+    #    Either sys.exit(0) or os._exit(0).
+    #    os._exit(0) is more "forceful" — it bypasses cleanup of other threads.
+    import os
+    os._exit(0)
+
+    # We won't reach a return statement after os._exit(0),
+    # but let's keep it for completeness:
+    return {"status": "Exiting..."}
+
+@app.get("/visualize", response_class=HTMLResponse)
+async def visualize_page():
+    # Build the path to visualize.html in the same directory
+    visualize_file_path = os.path.join(BASE_PATH, "visualize.html")
+
+    try:
+        with open(visualize_file_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+    except FileNotFoundError:
+        return Response(content="visualize.html not found", media_type="text/plain", status_code=404)
+
+    return HTMLResponse(content=html_content, status_code=200)
+
+
+@app.get("/list_csv_files")
+def list_csv_files():
+    # Return a JSON list of all CSV filenames in RECORDINGS_DIR
+    files = []
+    for fname in os.listdir(RECORDINGS_DIR):
+        if fname.lower().endswith(".csv"):
+            files.append(fname)
+    return JSONResponse(files)
+
+
+@app.get("/get_csv_data")
+def get_csv_data(filename: str):
+    """
+    Expects a query param: /get_csv_data?filename=MyFile.csv
+    Reads the CSV from RECORDINGS_DIR and returns JSON array of objects.
+    """
+    import csv
+
+    file_path = os.path.join(RECORDINGS_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    data_rows = []
+    with open(file_path, mode='r', newline='') as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row in reader:
+            data_rows.append(row)
+
+    # Return as JSON
+    return JSONResponse(data_rows)
+
 def main():
     lock_file = 'app.lock'
     with SingleInstance(lock_file):

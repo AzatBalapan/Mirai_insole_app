@@ -6,7 +6,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('index.html', '.'),
-        ('static', 'static')],
+        ('static', 'static'),('visualize.html', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -587,6 +587,38 @@
   ('cgi',
    'C:\\Users\\azatz\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\cgi.py',
    'PYMODULE'),
+  ('charset_normalizer',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\__init__.py',
+   'PYMODULE'),
+  ('charset_normalizer.api',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\api.py',
+   'PYMODULE'),
+  ('charset_normalizer.cd',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\cd.py',
+   'PYMODULE'),
+  ('charset_normalizer.constant',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\constant.py',
+   'PYMODULE'),
+  ('charset_normalizer.legacy',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\legacy.py',
+   'PYMODULE'),
+  ('charset_normalizer.models',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\models.py',
+   'PYMODULE'),
+  ('charset_normalizer.utils',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\utils.py',
+   'PYMODULE'),
+  ('charset_normalizer.version',
+   'C:\\Users\\azatz\\Desktop\\insoles '
+   'test\\venv\\Lib\\site-packages\\charset_normalizer\\version.py',
+   'PYMODULE'),
   ('click',
    'C:\\Users\\azatz\\Desktop\\insoles '
    'test\\venv\\Lib\\site-packages\\click\\__init__.py',

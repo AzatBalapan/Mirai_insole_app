@@ -150,9 +150,16 @@
             <span>Insole Sensor App</span>
         </div>
         <div class="navbar-links">
-            <a href="#about">About Us</a>
-            <a href="#faq">FAQ</a>
-            <a href="#contact">Contact</a>
+            <a href="/visualize">View Recorded Data</a>
+            <a href="#"
+               id="exitLink"
+               style="background-color: #dc3545;
+                      color: white;
+                      padding: 8px 12px;
+                      border-radius: 5px;
+                      font-weight: bold;">
+               Exit
+            </a>
         </div>
     </div>
 
@@ -273,6 +280,21 @@
                     x: { display: true, title: { display: true, text: 'Time' } },
                     y: { display: true, title: { display: true, text: 'Sensor Value' }, min: 0, max: 4095 }
                 }
+            }
+        });
+
+        document.getElementById("exitLink").addEventListener("click", function(event) {
+            event.preventDefault();
+            if (confirm("Are you sure you want to exit?")) {
+                fetch('/exit_app', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Exiting app...", data);
+                    // The server will kill itself, so the UI will eventually stop responding.
+                })
+                .catch(error => {
+                    console.error("Error exiting app:", error);
+                });
             }
         });
 

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Visualization</title>
+
+  <!-- Bulma for overall styling -->
+  <link rel="stylesheet" href="/static/bulma.min.css">
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="/static/fontawesome.min.css">
+  <link rel="stylesheet" href="/static/all.min.css">
+  <!-- Chart.js & Zoom Plugin -->
+  <script src="/static/chart.min.js"></script>
+  <script src="/static/chartjs-plugin-zoom.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+
+    .navbar {
+      width: 100%;
+      background-color: #243c6b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      color: white;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      box-sizing: border-box;
+    }
+
+    .navbar-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .navbar-links a {
+      color: white;
+      text-decoration: none;
+      font-size: 16px;
+      transition: color 0.3s;
+    }
+
+    .navbar-links a:hover {
+      color: #ffc107;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-row-gap: 40px;
+      grid-column-gap: 40px;
+      justify-items: center;
+      margin-top: 20px;
+    }
+
+    .chart-box {
+      width: 550px;
+      height: 360px;
+      background: #fff;
+      border-radius: 5px;
+      padding: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .chart-label {
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+      font-size: 16px;
+    }
+
+    .line-and-ring {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+
+    .chart-canvas {
+      width: 70%;
+      height: 100%;
+    }
+
+    .contact-ring {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: conic-gradient(#243c6b calc(var(--pct, 0) * 1%), #dddddd 0);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .contact-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #fff;
+      font-weight: bold;
+      font-size: 16px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="navbar">
+    <div class="navbar-links">
+      <a href="/" style="font-size: 18px;">← Back to Main</a>
+    </div>
+    <div class="navbar-links">
+      <a id="exitBtn" style="background-color: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; font-weight: bold;">Exit</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="field is-grouped is-grouped-multiline">
+      <div class="control">
+        <div class="field">
+          <label class="label">Choose a CSV file:</label>
+          <div class="control">
+            <div class="select is-link">
+              <select id="csvSelect">
+                <option value="" disabled selected>Select a CSV file</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="control" style="align-self: flex-end;">
+        <button id="loadButton" class="button is-primary"><i class="fas fa-folder-open"></i>&nbsp; Load &amp; Plot</button>
+      </div>
+
+      <div class="control" style="align-self: flex-end;">
+        <button id="zoomInButton" class="button is-info"><i class="fas fa-search-plus"></i></button>
+      </div>
+      <div class="control" style="align-self: flex-end;">
+        <button id="zoomOutButton" class="button is-info"><i class="fas fa-search-minus"></i></button>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-box">
+        <div class="chart-label">Left Top</div>
+        <div class="line-and-ring">
+          <canvas id="chartLeftTop" class="chart-canvas"></canvas>
+          <div class="contact-ring" id="ringLeftTop"><div class="contact-text" id="textLeftTop">0%</div></div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-label">Right Top</div>
+        <div class="line-and-ring">
+          <canvas id="chartRightTop" class="chart-canvas"></canvas>
+          <div class="contact-ring" id="ringRightTop"><div class="contact-text" id="textRightTop">0%</div></div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-label">Left Middle</div>
+        <div class="line-and-ring">
+          <canvas id="chartLeftMiddle" class="chart-canvas"></canvas>
+          <div class="contact-ring" id="ringLeftMiddle"><div class="contact-text" id="textLeftMiddle">0%</div></div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-label">Right Middle</div>
+        <div class="line-and-ring">
+          <canvas id="chartRightMiddle" class="chart-canvas"></canvas>
+          <div class="contact-ring" id="ringRightMiddle"><div class="contact-text" id="textRightMiddle">0%</div></div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-label">Left Heel</div>
+        <div class="line-and-ring">
+          <canvas id="chartLeftHeel" class="chart-canvas"></canvas>
+          <div class="contact-ring" id="ringLeftHeel"><div class="contact-text" id="textLeftHeel">0%</div></div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-label">Right Heel</div>
+        <div class="line-and-ring">
+          <canvas id="chartRightHeel" class="chart-canvas"></canvas>
+          <div class="contact-ring" id="ringRightHeel"><div class="contact-text" id="textRightHeel">0%</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let chartLeftTop, chartRightTop, chartLeftMiddle, chartRightMiddle, chartLeftHeel, chartRightHeel;
+  let allCharts = [];
+
+  document.addEventListener('DOMContentLoaded', () => {
+    fetch('/list_csv_files')
+      .then(res => res.json())
+      .then(files => {
+        const selectEl = document.getElementById('csvSelect');
+        files.forEach(file => {
+          const opt = document.createElement('option');
+          opt.value = file;
+          opt.textContent = file;
+          selectEl.appendChild(opt);
+        });
+      })
+      .catch(err => console.error('Error listing CSV files:', err));
+
+    document.getElementById('loadButton').addEventListener('click', loadAndPlot);
+
+    document.getElementById('zoomInButton').addEventListener('click', () => {
+      zoomAll(1.2);
+    });
+
+    document.getElementById('zoomOutButton').addEventListener('click', () => {
+      zoomAll(0.8);
+    });
+
+    document.getElementById('exitBtn').addEventListener('click', () => {
+      if(confirm("Are you sure you want to exit the entire app?")) {
+        fetch('/exit_app', { method: 'POST' })
+          .then(() => console.log('Exiting app...'))
+          .catch(err => console.error('Error calling /exit_app:', err));
+      }
+    });
+  });
+
+  function loadAndPlot() {
+    const csvFile = document.getElementById('csvSelect').value;
+    if(!csvFile) {
+      alert("Please select a CSV file first.");
+      return;
+    }
+    fetch('/get_csv_data?filename=' + encodeURIComponent(csvFile))
+      .then(res => res.json())
+      .then(data => {
+        plotData(data);
+        const contactTimes = computeContactTimes(data);
+        updateContactRings(contactTimes);
+      })
+      .catch(err => console.error('Error fetching CSV data:', err));
+  }
+
+  function plotData(data) {
+    allCharts.forEach(ch => ch.destroy());
+    allCharts = [];
+
+    const labels = data.map(row => parseFloat(row.timestamp) || 0);
+    const leftTop = data.map(row => parseFloat(row.Left_Top) || 0);
+    const leftMiddle = data.map(row => parseFloat(row.Left_Middle) || 0);
+    const leftHeel = data.map(row => parseFloat(row.Left_Heel) || 0);
+    const rightTop = data.map(row => parseFloat(row.Right_Top) || 0);
+    const rightMiddle = data.map(row => parseFloat(row.Right_Middle) || 0);
+    const rightHeel = data.map(row => parseFloat(row.Right_Heel) || 0);
+
+    const commonOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        zoom: {
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: 'x',
+            onZoomComplete({ chart }) {
+              syncZoom(chart);
+            }
+          },
+          pan: {
+            enabled: true,
+            mode: 'x'
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Timestamp' } },
+        y: { title: { display: true, text: 'Sensor Value' } }
+      }
+    };
+
+    function createChart(canvasId, label, dataArr, color='red') {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: dataArr,
+            borderColor: color,
+            fill: false
+          }]
+        },
+        options: JSON.parse(JSON.stringify(commonOptions))
+      });
+    }
+
+    chartLeftTop = createChart('chartLeftTop', 'Left Top', leftTop, 'blue');
+    chartRightTop = createChart('chartRightTop', 'Right Top', rightTop, 'green');
+    chartLeftMiddle = createChart('chartLeftMiddle', 'Left Middle', leftMiddle, 'orange');
+    chartRightMiddle = createChart('chartRightMiddle', 'Right Middle', rightMiddle, 'purple');
+    chartLeftHeel = createChart('chartLeftHeel', 'Left Heel', leftHeel, 'red');
+    chartRightHeel = createChart('chartRightHeel', 'Right Heel', rightHeel, 'brown');
+
+    allCharts = [chartLeftTop, chartRightTop, chartLeftMiddle, chartRightMiddle, chartLeftHeel, chartRightHeel];
+  }
+
+  function syncZoom(sourceChart) {
+    const { min, max } = sourceChart.scales.x;
+    allCharts.forEach(chart => {
+      if (chart !== sourceChart) {
+        chart.resetZoom();
+        chart.scales.x.options.min = min;
+        chart.scales.x.options.max = max;
+        chart.update('none');
+      }
+    });
+  }
+
+  function zoomAll(factor) {
+    allCharts.forEach(ch => ch.zoom(factor));
+  }
+
+  function computeContactTimes(data) {
+    let leftTopContact = 0, leftMiddleContact = 0, leftHeelContact = 0;
+    let rightTopContact = 0, rightMiddleContact = 0, rightHeelContact = 0;
+
+    let totalTimeLeftTop = 0, totalTimeLeftMiddle = 0, totalTimeLeftHeel = 0;
+    let totalTimeRightTop = 0, totalTimeRightMiddle = 0, totalTimeRightHeel = 0;
+
+    for (let i = 0; i < data.length - 1; i++) {
+      let current = data[i];
+      let next = data[i + 1];
+
+      let dt = parseFloat(next.timestamp) - parseFloat(current.timestamp);
+      if (isNaN(dt) || dt < 0) continue;
+
+      totalTimeLeftTop += dt;
+      if (parseFloat(current.Left_Top) < 500) leftTopContact += dt;
+
+      totalTimeLeftMiddle += dt;
+      if (parseFloat(current.Left_Middle) < 500) leftMiddleContact += dt;
+
+      totalTimeLeftHeel += dt;
+      if (parseFloat(current.Left_Heel) < 500) leftHeelContact += dt;
+
+      totalTimeRightTop += dt;
+      if (parseFloat(current.Right_Top) < 500) rightTopContact += dt;
+
+      totalTimeRightMiddle += dt;
+      if (parseFloat(current.Right_Middle) < 500) rightMiddleContact += dt;
+
+      totalTimeRightHeel += dt;
+      if (parseFloat(current.Right_Heel) < 500) rightHeelContact += dt;
+    }
+
+    function pct(contact, total) {
+      return total > 0 ? ((contact / total) * 100).toFixed(1) : 0;
+    }
+
+    return {
+      leftTop: pct(leftTopContact, totalTimeLeftTop),
+      leftMiddle: pct(leftMiddleContact, totalTimeLeftMiddle),
+      leftHeel: pct(leftHeelContact, totalTimeLeftHeel),
+      rightTop: pct(rightTopContact, totalTimeRightTop),
+      rightMiddle: pct(rightMiddleContact, totalTimeRightMiddle),
+      rightHeel: pct(rightHeelContact, totalTimeRightHeel)
+    };
+  }
+
+  function updateContactRings(ct) {
+    setRingPct('ringLeftTop', 'textLeftTop', ct.leftTop);
+    setRingPct('ringRightTop', 'textRightTop', ct.rightTop);
+    setRingPct('ringLeftMiddle', 'textLeftMiddle', ct.leftMiddle);
+    setRingPct('ringRightMiddle', 'textRightMiddle', ct.rightMiddle);
+    setRingPct('ringLeftHeel', 'textLeftHeel', ct.leftHeel);
+    setRingPct('ringRightHeel', 'textRightHeel', ct.rightHeel);
+  }
+
+  function setRingPct(ringId, textId, pct) {
+    const ringEl = document.getElementById(ringId);
+    const textEl = document.getElementById(textId);
+    ringEl.style.setProperty('--pct', pct);
+    textEl.textContent = pct + '%';
+  }
+</script>
+</body>
+</html>
