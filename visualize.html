@@ -347,45 +347,67 @@
     let totalTimeLeftTop = 0, totalTimeLeftMiddle = 0, totalTimeLeftHeel = 0;
     let totalTimeRightTop = 0, totalTimeRightMiddle = 0, totalTimeRightHeel = 0;
 
-    for (let i = 0; i < data.length - 1; i++) {
-      let current = data[i];
-      let next = data[i + 1];
+    const timestamps = data.map(row => parseFloat(row.timestamp) || 0);
+    const totalTime = timestamps[timestamps.length - 1] - timestamps[0];
 
-      let dt = parseFloat(next.timestamp) - parseFloat(current.timestamp);
-      if (isNaN(dt) || dt < 0) continue;
-
-      totalTimeLeftTop += dt;
-      if (parseFloat(current.Left_Top) < 500) leftTopContact += dt;
-
-      totalTimeLeftMiddle += dt;
-      if (parseFloat(current.Left_Middle) < 500) leftMiddleContact += dt;
-
-      totalTimeLeftHeel += dt;
-      if (parseFloat(current.Left_Heel) < 500) leftHeelContact += dt;
-
-      totalTimeRightTop += dt;
-      if (parseFloat(current.Right_Top) < 500) rightTopContact += dt;
-
-      totalTimeRightMiddle += dt;
-      if (parseFloat(current.Right_Middle) < 500) rightMiddleContact += dt;
-
-      totalTimeRightHeel += dt;
-      if (parseFloat(current.Right_Heel) < 500) rightHeelContact += dt;
+    function computeWholeArea(values) {
+      const maxVal = Math.max(...values);
+      return maxVal * totalTime;
     }
 
-    function pct(contact, total) {
-      return total > 0 ? ((contact / total) * 100).toFixed(1) : 0;
+    function computeAUC(values, timestamps) {
+      let auc = 0;
+      for (let i = 0; i < values.length - 1; i++) {
+        const base = timestamps[i + 1] - timestamps[i];
+        const height = (values[i] + values[i + 1]) / 2;
+        auc += base * height;
+      }
+      return auc;
     }
 
+    // Contact time calculations for each region
+    const leftTopValues = data.map(row => parseFloat(row.Left_Top) || 0);
+    const leftMiddleValues = data.map(row => parseFloat(row.Left_Middle) || 0);
+    const leftHeelValues = data.map(row => parseFloat(row.Left_Heel) || 0);
+    const rightTopValues = data.map(row => parseFloat(row.Right_Top) || 0);
+    const rightMiddleValues = data.map(row => parseFloat(row.Right_Middle) || 0);
+    const rightHeelValues = data.map(row => parseFloat(row.Right_Heel) || 0);
+
+    const wholeAreaLeftTop = computeWholeArea(leftTopValues);
+    const aucLeftTop = computeAUC(leftTopValues, timestamps);
+    leftTopContact = ((wholeAreaLeftTop - aucLeftTop) / wholeAreaLeftTop) * 100;
+
+    const wholeAreaLeftMiddle = computeWholeArea(leftMiddleValues);
+    const aucLeftMiddle = computeAUC(leftMiddleValues, timestamps);
+    leftMiddleContact = ((wholeAreaLeftMiddle - aucLeftMiddle) / wholeAreaLeftMiddle) * 100;
+
+    const wholeAreaLeftHeel = computeWholeArea(leftHeelValues);
+    const aucLeftHeel = computeAUC(leftHeelValues, timestamps);
+    leftHeelContact = ((wholeAreaLeftHeel - aucLeftHeel) / wholeAreaLeftHeel) * 100;
+
+    const wholeAreaRightTop = computeWholeArea(rightTopValues);
+    const aucRightTop = computeAUC(rightTopValues, timestamps);
+    rightTopContact = ((wholeAreaRightTop - aucRightTop) / wholeAreaRightTop) * 100;
+
+    const wholeAreaRightMiddle = computeWholeArea(rightMiddleValues);
+    const aucRightMiddle = computeAUC(rightMiddleValues, timestamps);
+    rightMiddleContact = ((wholeAreaRightMiddle - aucRightMiddle) / wholeAreaRightMiddle) * 100;
+
+    const wholeAreaRightHeel = computeWholeArea(rightHeelValues);
+    const aucRightHeel = computeAUC(rightHeelValues, timestamps);
+    rightHeelContact = ((wholeAreaRightHeel - aucRightHeel) / wholeAreaRightHeel) * 100;
+
+    // Return the contact times rounded to 1 decimal place
     return {
-      leftTop: pct(leftTopContact, totalTimeLeftTop),
-      leftMiddle: pct(leftMiddleContact, totalTimeLeftMiddle),
-      leftHeel: pct(leftHeelContact, totalTimeLeftHeel),
-      rightTop: pct(rightTopContact, totalTimeRightTop),
-      rightMiddle: pct(rightMiddleContact, totalTimeRightMiddle),
-      rightHeel: pct(rightHeelContact, totalTimeRightHeel)
+      leftTop: leftTopContact.toFixed(1),
+      leftMiddle: leftMiddleContact.toFixed(1),
+      leftHeel: leftHeelContact.toFixed(1),
+      rightTop: rightTopContact.toFixed(1),
+      rightMiddle: rightMiddleContact.toFixed(1),
+      rightHeel: rightHeelContact.toFixed(1)
     };
   }
+
 
   function updateContactRings(ct) {
     setRingPct('ringLeftTop', 'textLeftTop', ct.leftTop);
