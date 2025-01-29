@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 4.0//EN" "https://www.web3d.org/specifications/x3d-4.0.dtd">
+<X3D profile="Immersive" version="4.0" xmlns:xsd="http://www.w3.org/2001/XMLSchema-instance" xsd:noNamespaceSchemaLocation="https://www.web3d.org/specifications/x3d-4.0.xsd">
+    <head>
+        <component level="1" name="HAnim"/>
+        <meta name="title" content="HAnimModelFootRight.x3d"/>
+        <meta name="description" content="Right foot, using high-fidelity definitions for HAnim version 2.0"/>
+        <meta name="creator" content="Kwan Hee YOO, Don Brutzman and Joe Williams"/>
+        <meta name="created" content="26 January 2015"/>
+        <meta name="modified" content="23 December 2021"/>
+        <meta name="warning" content="not yet to scale"/>
+        <meta name="TODO" content="Update all values to match HAnim2 A.7 Level of articulation four LOA-4"/>
+        <meta name="reference" content="https://www.web3d.org/working-groups/humanoid-animation-HAnim"/>
+        <meta name="reference" content="https://www.web3d.org/documents/specifications/19774/V2.0"/>
+        <meta name="reference" content="https://www.web3d.org/documents/specifications/19774/V2.0/Architecture/concepts.html#TheFeet"/>
+        <meta name="reference" content="https://www.web3d.org/documents/specifications/19774/V2.0/Architecture/concepts.html#f-FootJoints"/>
+        <meta name="reference" content="https://www.web3d.org/specifications/X3Dv4/ISO-IEC19775-1v4-IS/Part01/components/hanim.html"/>
+        <meta name="subject" content="X3D HAnim humanoid animation"/>
+        <meta name="identifier" content="https://www.web3d.org/x3d/content/examples/HumanoidAnimation/Characters/HAnimModelFootRight.x3d"/>
+        <meta name="generator" content="X3D-Edit 3.3, https://savage.nps.edu/X3D-Edit"/>
+        <meta name="license" content="../license.html"/>
+    </head>
+    <Scene>
+        <WorldInfo title="HAnimModelFootRight.x3d"/>
+        <HAnimHumanoid DEF="hanim_Foot_Right" loa="4" name="Foot_Right">
+            <HAnimJoint DEF="hanim_humanoid_root" name="humanoid_root" ulimit="0 0 0" llimit="0 0 0">
+                <HAnimJoint DEF="hanim_r_talocrural" name="r_talocrural" description="connection joint of foot to leg above" ulimit="0 0 0" llimit="0 0 0">
+                    <HAnimSegment DEF="hanim_r_talus" name="r_talus">
+                        <Transform>
+                            <Shape>
+                                <Sphere radius="0.025"/>
+                                <Appearance>
+                                    <Material diffuseColor="0 0 1"/>
+                                </Appearance>
+                            </Shape>
+                        </Transform>
+                        <Shape>
+                            <Appearance>
+                                <Material emissiveColor="1 1 1"/>
+                            </Appearance>
+                            <IndexedLineSet coordIndex="0 1">
+                                <Coordinate point="0 0 0 0.0 -0.3 0"/>
+                            </IndexedLineSet>
+                        </Shape>
+                    </HAnimSegment>
+                </HAnimJoint>
+            </HAnimJoint>
+        </HAnimHumanoid>
+    </Scene>
+</X3D>
