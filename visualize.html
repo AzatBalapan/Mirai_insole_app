@@ -154,6 +154,13 @@
       <div class="control" style="align-self: flex-end;">
         <button id="zoomOutButton" class="button is-info"><i class="fas fa-search-minus"></i></button>
       </div>
+
+      <!-- New Sync Zoom Button -->
+      <div class="control" style="align-self: flex-end;">
+        <button id="syncZoomButton" class="button is-warning">
+          <i class="fas fa-sync"></i> Sync Zoom
+        </button>
+      </div>
     </div>
 
     <div class="charts-grid">
@@ -161,7 +168,9 @@
         <div class="chart-label">Left Top</div>
         <div class="line-and-ring">
           <canvas id="chartLeftTop" class="chart-canvas"></canvas>
-          <div class="contact-ring" id="ringLeftTop"><div class="contact-text" id="textLeftTop">0%</div></div>
+          <div class="contact-ring" id="ringLeftTop">
+            <div class="contact-text" id="textLeftTop">0%</div>
+          </div>
         </div>
       </div>
 
@@ -169,7 +178,9 @@
         <div class="chart-label">Right Top</div>
         <div class="line-and-ring">
           <canvas id="chartRightTop" class="chart-canvas"></canvas>
-          <div class="contact-ring" id="ringRightTop"><div class="contact-text" id="textRightTop">0%</div></div>
+          <div class="contact-ring" id="ringRightTop">
+            <div class="contact-text" id="textRightTop">0%</div>
+          </div>
         </div>
       </div>
 
@@ -177,7 +188,9 @@
         <div class="chart-label">Left Middle</div>
         <div class="line-and-ring">
           <canvas id="chartLeftMiddle" class="chart-canvas"></canvas>
-          <div class="contact-ring" id="ringLeftMiddle"><div class="contact-text" id="textLeftMiddle">0%</div></div>
+          <div class="contact-ring" id="ringLeftMiddle">
+            <div class="contact-text" id="textLeftMiddle">0%</div>
+          </div>
         </div>
       </div>
 
@@ -185,7 +198,9 @@
         <div class="chart-label">Right Middle</div>
         <div class="line-and-ring">
           <canvas id="chartRightMiddle" class="chart-canvas"></canvas>
-          <div class="contact-ring" id="ringRightMiddle"><div class="contact-text" id="textRightMiddle">0%</div></div>
+          <div class="contact-ring" id="ringRightMiddle">
+            <div class="contact-text" id="textRightMiddle">0%</div>
+          </div>
         </div>
       </div>
 
@@ -193,7 +208,9 @@
         <div class="chart-label">Left Heel</div>
         <div class="line-and-ring">
           <canvas id="chartLeftHeel" class="chart-canvas"></canvas>
-          <div class="contact-ring" id="ringLeftHeel"><div class="contact-text" id="textLeftHeel">0%</div></div>
+          <div class="contact-ring" id="ringLeftHeel">
+            <div class="contact-text" id="textLeftHeel">0%</div>
+          </div>
         </div>
       </div>
 
@@ -201,7 +218,9 @@
         <div class="chart-label">Right Heel</div>
         <div class="line-and-ring">
           <canvas id="chartRightHeel" class="chart-canvas"></canvas>
-          <div class="contact-ring" id="ringRightHeel"><div class="contact-text" id="textRightHeel">0%</div></div>
+          <div class="contact-ring" id="ringRightHeel">
+            <div class="contact-text" id="textRightHeel">0%</div>
+          </div>
         </div>
       </div>
     </div>
@@ -210,6 +229,9 @@
 <script>
   let chartLeftTop, chartRightTop, chartLeftMiddle, chartRightMiddle, chartLeftHeel, chartRightHeel;
   let allCharts = [];
+
+  // We'll store the last zoom state (min, max) of whichever chart the user scrolled
+  let lastZoomState = { chart: null, min: null, max: null };
 
   document.addEventListener('DOMContentLoaded', () => {
     fetch('/list_csv_files')
@@ -233,6 +255,11 @@
 
     document.getElementById('zoomOutButton').addEventListener('click', () => {
       zoomAll(0.8);
+    });
+
+    // NEW: Sync Zoom button listener
+    document.getElementById('syncZoomButton').addEventListener('click', () => {
+      applyZoomToOthers();
     });
 
     document.getElementById('exitBtn').addEventListener('click', () => {
@@ -261,6 +288,7 @@
   }
 
   function plotData(data) {
+    // Destroy old charts if any
     allCharts.forEach(ch => ch.destroy());
     allCharts = [];
 
@@ -282,7 +310,10 @@
             pinch: { enabled: true },
             mode: 'x',
             onZoomComplete({ chart }) {
-              syncZoom(chart);
+              // Instead of auto-syncing, just store the new range
+              lastZoomState.chart = chart;
+              lastZoomState.min = chart.scales.x.min;
+              lastZoomState.max = chart.scales.x.max;
             }
           },
           pan: {
@@ -324,14 +355,25 @@
     allCharts = [chartLeftTop, chartRightTop, chartLeftMiddle, chartRightMiddle, chartLeftHeel, chartRightHeel];
   }
 
-  function syncZoom(sourceChart) {
-    const { min, max } = sourceChart.scales.x;
+  // This function applies the stored min/max from the last zoomed chart to all other charts
+  function applyZoomToOthers() {
+    if (!lastZoomState.chart) {
+      alert("No zoom state available yet. Please zoom on one chart first.");
+      return;
+    }
+
+    const { min, max } = lastZoomState;
     allCharts.forEach(chart => {
-      if (chart !== sourceChart) {
+      // Only update other charts; or you can update all including the last one
+      if (chart !== lastZoomState.chart) {
+        // Reset existing zoom first
         chart.resetZoom();
+
+        // Apply the new min/max
         chart.scales.x.options.min = min;
         chart.scales.x.options.max = max;
-        chart.update('none');
+
+        chart.update('none'); // or just chart.update();
       }
     });
   }
@@ -344,10 +386,14 @@
     let leftTopContact = 0, leftMiddleContact = 0, leftHeelContact = 0;
     let rightTopContact = 0, rightMiddleContact = 0, rightHeelContact = 0;
 
-    let totalTimeLeftTop = 0, totalTimeLeftMiddle = 0, totalTimeLeftHeel = 0;
-    let totalTimeRightTop = 0, totalTimeRightMiddle = 0, totalTimeRightHeel = 0;
-
     const timestamps = data.map(row => parseFloat(row.timestamp) || 0);
+    if (timestamps.length < 2) {
+      return {
+        leftTop: 0, leftMiddle: 0, leftHeel: 0,
+        rightTop: 0, rightMiddle: 0, rightHeel: 0
+      };
+    }
+
     const totalTime = timestamps[timestamps.length - 1] - timestamps[0];
 
     function computeWholeArea(values) {
@@ -355,17 +401,16 @@
       return maxVal * totalTime;
     }
 
-    function computeAUC(values, timestamps) {
+    function computeAUC(values, times) {
       let auc = 0;
       for (let i = 0; i < values.length - 1; i++) {
-        const base = timestamps[i + 1] - timestamps[i];
+        const base = times[i + 1] - times[i];
         const height = (values[i] + values[i + 1]) / 2;
         auc += base * height;
       }
       return auc;
     }
 
-    // Contact time calculations for each region
     const leftTopValues = data.map(row => parseFloat(row.Left_Top) || 0);
     const leftMiddleValues = data.map(row => parseFloat(row.Left_Middle) || 0);
     const leftHeelValues = data.map(row => parseFloat(row.Left_Heel) || 0);
@@ -407,7 +452,6 @@
       rightHeel: rightHeelContact.toFixed(1)
     };
   }
-
 
   function updateContactRings(ct) {
     setRingPct('ringLeftTop', 'textLeftTop', ct.leftTop);

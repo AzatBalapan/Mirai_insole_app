@@ -2,18 +2,14 @@ import cv2
 import numpy as np
 import asyncio
 from bleak import BleakClient, BleakScanner
-from fastapi import FastAPI, Response, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import csv
 import time
-from fastapi.responses import JSONResponse
 import psutil  # To check if a process is running
 import threading  # To run FastAPI and BLE client in separate threads
 import webview  # pywebview for embedding the frontend
 import sys
 import os
-
 from fastapi import FastAPI, Response, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware

@@ -3,5 +3,11 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.11 (insoles test)" />
   </component>
+  <component name="ProjectResources">
+    <resource url="https://www.web3d.org/specifications/x3d-4.0.xsd " location="$PROJECT_DIR$" />
+  </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11 (insoles test)" project-jdk-type="Python SDK" />
+  <component name="PyCharmProfessionalAdvertiser">
+    <option name="shown" value="true" />
+  </component>
 </project>

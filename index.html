@@ -66,25 +66,36 @@
             margin: 20px auto;
         }
 
-        .left-chart, .right-chart {
-            width: 300px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        /* Chart containers */
-        .chart-container {
+        /* Left side: replaced the chart with a walking GIF */
+        .left-chart {
             width: 300px;
             height: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
 
+        /* Middle insole container */
         #insoleSvg {
             width: 600px;
             height: 600px;
             border: 1px solid #ccc;
             border-radius: 8px;
             background-color: white;
+        }
+
+        /* Right side: replaced the human model with a mirrored GIF */
+        .right-model {
+            width: 300px;
+            height: 400px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         .form-container {
@@ -164,12 +175,17 @@
     </div>
 
     <div class="layout-container">
+        <!-- Left side: walking GIF (normal orientation) -->
         <div class="left-chart">
-            <canvas id="sensorGraph1" class="chart-container"></canvas>
+            <img src="/static/exercise-walk.gif" alt="Walking Right" style="width:300px; height:400px;" />
         </div>
+
+        <!-- Middle insole SVG remains -->
         <svg id="insoleSvg"></svg>
-        <div class="right-chart">
-            <canvas id="sensorGraph2" class="chart-container"></canvas>
+
+        <!-- Right side: mirrored walking GIF -->
+        <div class="right-model">
+            <img src="/static/exercise-walk.gif" alt="Walking Left" style="width:300px; height:400px; transform: scaleX(-1);" />
         </div>
     </div>
 
@@ -217,12 +233,16 @@
         </form>
     </div>
 
+    <!-- Scripts -->
     <script src="/static/d3.v6.min.js"></script>
-    <script src="/static/chart.min.js"></script>
     <script>
+        // We removed the chart; keep the maximum data points if needed in the future:
         var maxDataPoints = 50;
 
+        // Insole contour data
         var insoleContours;
+
+        // Sensor values
         var sensorValuesLeft = {
             'Left_Heel': 0,
             'Left_Middle': 0,
@@ -233,56 +253,14 @@
             'Right_Middle': 0,
             'Right_Top': 0
         };
-        var timeLeft = 0;
-        var timeRight = 0;
 
-        var sensorDataLeft = {
-            labels: [],
-            datasets: [
-                { label: 'Left_Heel', data: [], borderColor: 'red', fill: false },
-                { label: 'Left_Middle', data: [], borderColor: 'green', fill: false },
-                { label: 'Left_Top', data: [], borderColor: 'blue', fill: false }
-            ]
-        };
-        var sensorDataRight = {
-            labels: [],
-            datasets: [
-                { label: 'Right_Heel', data: [], borderColor: 'red', fill: false },
-                { label: 'Right_Middle', data: [], borderColor: 'green', fill: false },
-                { label: 'Right_Top', data: [], borderColor: 'blue', fill: false }
-            ]
-        };
+        // Asymmetry variables
+        var iterationCount = 0;
+        var maxIterationsForAsymmetry = 300;
+        var leftLoads = [];
+        var rightLoads = [];
 
-        var ctxLeft = document.getElementById('sensorGraph1').getContext('2d');
-        var chartLeft = new Chart(ctxLeft, {
-            type: 'line',
-            data: sensorDataLeft,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                scales: {
-                    x: { display: true, title: { display: true, text: 'Time' } },
-                    y: { display: true, title: { display: true, text: 'Sensor Value' }, min: 0, max: 4095 }
-                }
-            }
-        });
-
-        var ctxRight = document.getElementById('sensorGraph2').getContext('2d');
-        var chartRight = new Chart(ctxRight, {
-            type: 'line',
-            data: sensorDataRight,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                scales: {
-                    x: { display: true, title: { display: true, text: 'Time' } },
-                    y: { display: true, title: { display: true, text: 'Sensor Value' }, min: 0, max: 4095 }
-                }
-            }
-        });
-
+        // Navbar exit link
         document.getElementById("exitLink").addEventListener("click", function(event) {
             event.preventDefault();
             if (confirm("Are you sure you want to exit?")) {
@@ -290,7 +268,6 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log("Exiting app...", data);
-                    // The server will kill itself, so the UI will eventually stop responding.
                 })
                 .catch(error => {
                     console.error("Error exiting app:", error);
@@ -298,6 +275,7 @@
             }
         });
 
+        // Fetch insole contour data from server
         function fetchInsoleContours() {
             fetch('/get_insole_contours')
             .then(response => response.json())
@@ -314,6 +292,7 @@
             });
         }
 
+        // Draw the insole contours
         function drawInsoleContours() {
             var svg = d3.select('#insoleSvg');
             svg.selectAll("*").remove();
@@ -367,6 +346,7 @@
             }
         }
 
+        // Update colors on the insole based on sensor values
         function updateInsoleColors() {
             var colorScale = d3.scaleLinear()
                 .domain([0, 4095])
@@ -380,7 +360,6 @@
                     element.attr('fill', color);
                 }
             }
-
             for (var key in sensorValuesRight) {
                 var value = sensorValuesRight[key];
                 var color = colorScale(value);
@@ -391,12 +370,7 @@
             }
         }
 
-        // Asymmetry calculation variables
-        var iterationCount = 0;
-        var maxIterationsForAsymmetry = 300;
-        var leftLoads = [];
-        var rightLoads = [];
-
+        // Compute asymmetry
         function computeAsymmetry() {
             if (leftLoads.length < maxIterationsForAsymmetry || rightLoads.length < maxIterationsForAsymmetry) {
                 return;
@@ -424,26 +398,30 @@
             iterationCount = 0;
         }
 
+        // Periodically fetch sensor values
         function fetchSensorValues() {
             fetch('/get_sensor_values')
             .then(response => response.json())
             .then(data => {
-                sensorValuesLeft = {
-                    'Left_Heel': data['Left_Heel'],
-                    'Left_Middle': data['Left_Middle'],
-                    'Left_Top': data['Left_Top']
-                };
-                sensorValuesRight = {
-                    'Right_Heel': data['Right_Heel'],
-                    'Right_Middle': data['Right_Middle'],
-                    'Right_Top': data['Right_Top']
-                };
-                updateInsoleColors();
-                updateCharts();
+                // Update sensor values
+                sensorValuesLeft['Left_Heel']   = data['Left_Heel'];
+                sensorValuesLeft['Left_Middle'] = data['Left_Middle'];
+                sensorValuesLeft['Left_Top']    = data['Left_Top'];
 
-                // Add loads for asymmetry calculation
-                var leftLoad = sensorValuesLeft['Left_Heel'] + sensorValuesLeft['Left_Middle'] + sensorValuesLeft['Left_Top'];
-                var rightLoad = sensorValuesRight['Right_Heel'] + sensorValuesRight['Right_Middle'] + sensorValuesRight['Right_Top'];
+                sensorValuesRight['Right_Heel']   = data['Right_Heel'];
+                sensorValuesRight['Right_Middle'] = data['Right_Middle'];
+                sensorValuesRight['Right_Top']    = data['Right_Top'];
+
+                // Update insole visualization
+                updateInsoleColors();
+
+                // For asymmetry
+                var leftLoad = sensorValuesLeft['Left_Heel']
+                             + sensorValuesLeft['Left_Middle']
+                             + sensorValuesLeft['Left_Top'];
+                var rightLoad = sensorValuesRight['Right_Heel']
+                              + sensorValuesRight['Right_Middle']
+                              + sensorValuesRight['Right_Top'];
 
                 leftLoads.push(leftLoad);
                 rightLoads.push(rightLoad);
@@ -458,33 +436,11 @@
             });
         }
 
-        function updateCharts() {
-            timeLeft += 1;
-            sensorDataLeft.labels.push(timeLeft);
-            sensorDataLeft.datasets[0].data.push(sensorValuesLeft['Left_Heel']);
-            sensorDataLeft.datasets[1].data.push(sensorValuesLeft['Left_Middle']);
-            sensorDataLeft.datasets[2].data.push(sensorValuesLeft['Left_Top']);
-
-            timeRight += 1;
-            sensorDataRight.labels.push(timeRight);
-            sensorDataRight.datasets[0].data.push(sensorValuesRight['Right_Heel']);
-            sensorDataRight.datasets[1].data.push(sensorValuesRight['Right_Middle']);
-            sensorDataRight.datasets[2].data.push(sensorValuesRight['Right_Top']);
-
-            if (sensorDataLeft.labels.length > maxDataPoints) {
-                sensorDataLeft.labels.shift();
-                sensorDataRight.labels.shift();
-                sensorDataLeft.datasets.forEach(dataset => dataset.data.shift());
-                sensorDataRight.datasets.forEach(dataset => dataset.data.shift());
-            }
-
-            chartLeft.update();
-            chartRight.update();
-        }
-
+        // Initiate fetch loops
         fetchInsoleContours();
         setInterval(fetchSensorValues, 100);
 
+        // Recording logic
         var isRecording = false;
         var recordButton = document.getElementById("recordButton");
 
@@ -553,7 +509,6 @@
                 console.error("Error stopping recording:", error);
             });
         }
-
     </script>
 </body>
 </html>
