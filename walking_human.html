@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>IMU Skeleton</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+      margin: 20px;
+    }
+    h1 { margin-bottom: 10px; }
+    #canvasContainer {
+      display: inline-block;
+      background: #fff;
+      border: 1px solid #ccc;
+      position: relative;
+    }
+    #skeletonCanvas {
+      background: #ffffff;
+    }
+    #info {
+      margin-top: 10px;
+    }
+    #timer {
+      font-size: 20px;
+      font-weight: bold;
+      color: blue;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>IMU Controlled Skeleton (Single Leg)</h1>
+  <div id="canvasContainer">
+    <canvas id="skeletonCanvas" width="600" height="500"></canvas>
+  </div>
+  <div id="info">
+    <div id="imu1">MPU1: roll=0, pitch=0</div>
+    <div id="imu2">MPU2: roll=0, pitch=0</div>
+    <div id="timer">Last Update: --:--:--</div>
+  </div>
+
+  <script>
+    var ws = new WebSocket("ws://" + window.location.host + "/ws");
+
+    const canvas = document.getElementById("skeletonCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const hipX = 300;
+    const hipY = 200; // Shifted upward
+    const shoulderX = hipX;
+    const shoulderY = hipY - 80; // Adjusted shoulder position
+    const headRadius = 30;
+    const thighLength = 80; // Shortened to fit within canvas
+    const legLength = 80;   // Shortened to fit within canvas
+
+    let kneeAngle = 0;
+    let footAngle = 0;
+
+    function drawSkeleton() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw body (ellipse)
+      ctx.fillStyle = "#ccc";
+      ctx.beginPath();
+      ctx.ellipse(
+        hipX,
+        (hipY + shoulderY) / 2, // Center of the ellipse
+        20,
+        Math.abs(hipY - shoulderY) / 2, // Half the vertical length
+        0, 0, 2 * Math.PI
+      );
+      ctx.fill();
+
+      // Draw head (adjusted to attach to the body)
+      ctx.fillStyle = "#c69";
+      ctx.beginPath();
+      ctx.arc(shoulderX, shoulderY - headRadius - 5, headRadius, 0, 2 * Math.PI); // Adjusted to connect to the torso
+      ctx.fill();
+
+      // Draw torso (hip to shoulder)
+      ctx.strokeStyle = "gray";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY);
+      ctx.lineTo(shoulderX, shoulderY);
+      ctx.stroke();
+
+      // Draw leg
+      const kneeX = hipX + thighLength * Math.sin(kneeAngle);
+      const kneeY = hipY + thighLength * Math.cos(kneeAngle);
+
+      const footX = kneeX + legLength * Math.sin(kneeAngle + footAngle);
+      const footY = kneeY + legLength * Math.cos(kneeAngle + footAngle);
+
+      // Thigh: hip to knee
+      ctx.strokeStyle = "blue";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY);
+      ctx.lineTo(kneeX, kneeY);
+      ctx.stroke();
+
+      // Lower leg: knee to foot
+      ctx.strokeStyle = "green";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(kneeX, kneeY);
+      ctx.lineTo(footX, footY);
+      ctx.stroke();
+
+      // Joints
+      ctx.fillStyle = "red"; // Hip
+      ctx.beginPath();
+      ctx.arc(hipX, hipY, 5, 0, 2 * Math.PI);
+      ctx.fill();
+
+      ctx.fillStyle = "blue"; // Knee
+      ctx.beginPath();
+      ctx.arc(kneeX, kneeY, 5, 0, 2 * Math.PI);
+      ctx.fill();
+
+      ctx.fillStyle = "purple"; // Foot
+      ctx.beginPath();
+      ctx.arc(footX, footY, 5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    function updateAngles(r1, p1, r2, p2, timestamp) {
+      document.getElementById("imu1").innerText = `MPU1: roll=${r1.toFixed(2)}, pitch=${p1.toFixed(2)}`;
+      document.getElementById("imu2").innerText = `MPU2: roll=${r2.toFixed(2)}, pitch=${p2.toFixed(2)}`;
+      document.getElementById("timer").innerText = `Last Update: ${timestamp}`;
+
+      kneeAngle = (p1 * Math.PI) / 180;
+      footAngle = (p2 * Math.PI) / 180;
+    }
+
+    function animate() {
+      drawSkeleton();
+      requestAnimationFrame(animate);
+    }
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      updateAngles(data.roll1, data.pitch1, data.roll2, data.pitch2, data.timestamp);
+    };
+
+    animate();
+  </script>
+</body>
+</html>

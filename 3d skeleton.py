@@ -1,168 +1,166 @@
-import pygame
+import sys
+import os
 import math
+import time
+import asyncio
+import psutil
+import threading
+from bleak import BleakClient, BleakScanner
+import uvicorn
+import webview
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import HTMLResponse
+from starlette.responses import FileResponse
 
-# Pygame initialization
-pygame.init()
-SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-clock = pygame.time.Clock()
 
-# Define stick figure parameters
-torso_length = 100
-thigh_length = 80
-leg_length = 80
-foot_length = 60  # Length between heel and toe (longest side)
-foot_height = 20  # Height from the ground to the ankle
-hip_x, hip_y = 400, 300  # Hip joint position
-shoulder_x, shoulder_y = hip_x, hip_y - torso_length  # Shoulder position
-head_radius = 30  # Head size
+# ------------- SINGLE-INSTANCE LOCK -------------
+class SingleInstance:
+    def __init__(self, lock_file):
+        self.lock_file = lock_file
+        self.fd = None
 
-# Joint angles (in radians)
-angles = {
-    "β16": math.pi / 6,  # Hip to thigh
-    "β13": -math.pi / 4,  # Thigh to leg
-    "β34": math.pi / 8,  # Leg to ankle
+    def __enter__(self):
+        if os.path.exists(self.lock_file):
+            try:
+                with open(self.lock_file, 'r') as f:
+                    pid = int(f.read())
+                if psutil.pid_exists(pid):
+                    print("Another instance is running. Exiting.")
+                    sys.exit(1)
+                else:
+                    print("Removing stale lock file.")
+                    os.remove(self.lock_file)
+            except Exception:
+                print("Error reading lock file. Assuming another instance is running.")
+                sys.exit(1)
+
+        try:
+            self.fd = os.open(self.lock_file, os.O_CREAT | os.O_RDWR)
+            os.write(self.fd, str(os.getpid()).encode())
+            return self
+        except Exception:
+            print("Unable to create lock file.")
+            sys.exit(1)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.fd:
+            os.close(self.fd)
+        if os.path.exists(self.lock_file):
+            os.remove(self.lock_file)
+
+# ------------- FASTAPI APP -------------
+app = FastAPI()
+
+# ------------- BLE + IMU DATA -------------
+SERVICE_UUID        = "5d6fce32-7d51-48c3-bb12-d11fba01e12f"
+CHARACTERISTIC_UUID = "bafabc41-3b2b-4231-bdaf-e89a1bcbdf45"
+
+esp_data = {
+    "roll1":  0.0,
+    "pitch1": 0.0,
+    "roll2":  0.0,
+    "pitch2": 0.0,
+    "timestamp": time.strftime("%H:%M:%S")
 }
 
-# Walking animation parameters
-step_speed = 0.05
-foot_roll_phase = 0.2  # Fraction of the step duration spent rolling
-foot_roll_offset = 10  # Vertical adjustment during rolling
+connected_client = None
+ble_task_running = False
 
-# Ground level
-ground_y = 450
+# ------------- BLE SCAN + CONNECT + LISTEN -------------
+async def scan_for_esp32():
+    print("Scanning for ESP32 device advertising SERVICE_UUID...")
+    while True:
+        devices = await BleakScanner.discover()
+        for d in devices:
+            if SERVICE_UUID in d.metadata.get("uuids", []):
+                print(f"Found ESP32 at {d.address}")
+                return d.address
+        print("Not found. Retrying in 5s...")
+        await asyncio.sleep(5)
 
-# Colors for different body parts
-colors = {
-    "left_leg": (0, 0, 200),  # Darker blue for the left leg
-    "right_leg": (0, 0, 255),  # Lighter blue for the right leg
-    "torso": (100, 100, 100),  # Gray torso
-    "head": (200, 150, 100),  # Skin tone head
-}
+async def connect_and_listen():
+    global connected_client
+    esp32_address = await scan_for_esp32()
 
-def draw_rotated_ellipse_with_pivots(surface, color, start, end, width):
-    """
-    Draw an ellipse rotated between two points such that its edges align with the pivot points.
-    """
-    center_x = (start[0] + end[0]) / 2
-    center_y = (start[1] + end[1]) / 2
+    async with BleakClient(esp32_address) as client:
+        connected_client = client
+        if not client.is_connected:
+            print("Failed to connect to ESP32.")
+            return
+        print("Connected to ESP32!")
 
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    angle = math.atan2(dy, dx)
-    length = math.sqrt(dx**2 + dy**2)
+        def notification_handler(sender, data: bytearray):
+            decoded = data.decode("utf-8").strip()
+            print(f"[BLE] Raw data: {decoded}")
+            try:
+                vals = decoded.split(",")
+                if len(vals) >= 4:
+                    r1, p1, r2, p2 = map(float, vals[:4])
+                    esp_data["roll1"]  = r1
+                    esp_data["pitch1"] = p1
+                    esp_data["roll2"]  = r2
+                    esp_data["pitch2"] = p2
+                    esp_data["timestamp"] = time.strftime("%H:%M:%S")
+                    print(f"[BLE Parsed] r1={r1}, p1={p1}, r2={r2}, p2={p2} | {esp_data['timestamp']}")
+            except Exception as e:
+                print(f"Error parsing BLE data '{decoded}': {e}")
 
-    ellipse_rect = pygame.Rect(0, 0, length, width)
-    ellipse_rect.center = (center_x, center_y)
+        await client.start_notify(CHARACTERISTIC_UUID, notification_handler)
+        print("Notification handler started.")
 
-    ellipse_surface = pygame.Surface(ellipse_rect.size, pygame.SRCALPHA)
-    pygame.draw.ellipse(ellipse_surface, color, (0, 0, *ellipse_rect.size))
-    rotated_surface = pygame.transform.rotate(ellipse_surface, math.degrees(-angle))
-    new_rect = rotated_surface.get_rect(center=ellipse_rect.center)
-    surface.blit(rotated_surface, new_rect)
+        while True:
+            if not client.is_connected:
+                print("BLE device disconnected.")
+                return
+            await asyncio.sleep(1)
 
-def calculate_joint_positions(current_time, side):
-    """
-    Calculate joint positions for the left or right leg based on angles and lengths.
-    """
-    phase_offset = math.pi if side == "left" else 0
+async def run_ble_client():
+    global ble_task_running
+    if ble_task_running:
+        print("BLE client already running.")
+        return
+    ble_task_running = True
+    try:
+        await connect_and_listen()
+    except Exception as e:
+        print(f"BLE Error: {e}")
+    finally:
+        ble_task_running = False
 
-    hip_angle = angles["β16"] * math.sin(current_time + phase_offset)
-    knee_angle = angles["β13"] * math.sin(current_time + math.pi / 2 + phase_offset)
-    ankle_angle = angles["β34"] * math.sin(current_time + phase_offset)
+# ------------- WEBSOCKET /ws -------------
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+    print("[WebSocket] Client connected.")
+    try:
+        while True:
+            await ws.send_json(esp_data)
+            await asyncio.sleep(0.05)  # 20 times/sec
+    except Exception as e:
+        print(f"[WebSocket] Disconnected: {e}")
 
-    knee_x = hip_x + thigh_length * math.sin(hip_angle)
-    knee_y = hip_y + thigh_length * math.cos(hip_angle)
+# ------------- ROOT HTML PAGE -------------
+@app.get("/", response_class=FileResponse)
+async def serve_index():
+    return FileResponse("walking_human.html")
 
-    ankle_x = knee_x + leg_length * math.sin(hip_angle + knee_angle)
-    ankle_y = knee_y + leg_length * math.cos(hip_angle + knee_angle)
+# ------------- RUN SERVERS -------------
+def run_fastapi_server():
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
 
-    foot_angle = hip_angle + knee_angle + ankle_angle
-    foot_dx = foot_length * math.cos(foot_angle)
-    foot_dy = foot_length * math.sin(foot_angle)
-    foot_start = (ankle_x, ankle_y)
-    foot_end = (ankle_x + foot_dx, ankle_y + foot_dy)
+def run_ble_client_in_thread():
+    asyncio.run(run_ble_client())
 
-    roll_fraction = ((current_time + phase_offset) % (2 * math.pi)) / (2 * math.pi)
-    if roll_fraction < foot_roll_phase:
-        roll_adjustment = foot_roll_offset * (1 - roll_fraction / foot_roll_phase)
-        foot_start = (foot_start[0], min(foot_start[1] - roll_adjustment, ground_y))
-        foot_end = (foot_end[0], min(foot_end[1] - roll_adjustment, ground_y))
+def main():
+    lock_file = "app.lock"
+    with SingleInstance(lock_file):
+        threading.Thread(target=run_fastapi_server, daemon=True).start()
+        threading.Thread(target=run_ble_client_in_thread, daemon=True).start()
+        webview.create_window("IMU Visualization", "http://127.0.0.1:8000", width=1024, height=768)
+        webview.start(debug=True)
 
-    return {
-        "knee": (knee_x, knee_y),
-        "ankle": (ankle_x, ankle_y),
-        "foot": (foot_start, foot_end),
-    }
-
-def draw_leg(joints, color):
-    """
-    Draw a single leg based on the joint positions and color.
-    """
-    draw_rotated_ellipse_with_pivots(screen, color, (hip_x, hip_y), joints["knee"], 20)
-    pygame.draw.circle(screen, (255, 0, 0), (hip_x, hip_y), 5)  # Hip pivot
-
-    draw_rotated_ellipse_with_pivots(screen, color, joints["knee"], joints["ankle"], 15)
-    pygame.draw.circle(screen, (0, 255, 0), (int(joints["knee"][0]), int(joints["knee"][1])), 5)  # Knee pivot
-
-    draw_rotated_ellipse_with_pivots(screen, color, joints["foot"][0], joints["foot"][1], foot_height)
-    pygame.draw.circle(screen, (0, 0, 255), (int(joints["ankle"][0]), int(joints["ankle"][1])), 5)  # Ankle pivot
-
-def draw_torso():
-    """
-    Draw the torso as an ellipse between the hip and shoulder.
-    Returns the dynamic shoulder position.
-    """
-    shoulder_x_offset = 10 * math.sin(current_time)  # Slight horizontal shoulder movement
-    shoulder_y_offset = 5 * math.cos(current_time)  # Slight vertical shoulder movement
-    shoulder_position = (shoulder_x + shoulder_x_offset, shoulder_y + shoulder_y_offset)
-
-    draw_rotated_ellipse_with_pivots(screen, colors["torso"], (hip_x, hip_y), shoulder_position, 25)
-    pygame.draw.circle(screen, (255, 0, 0), (hip_x, hip_y), 5)  # Hip pivot
-    pygame.draw.circle(screen, (0, 255, 0), (int(shoulder_position[0]), int(shoulder_position[1])), 5)  # Shoulder pivot
-
-    return shoulder_position  # Return shoulder position for head placement
-def draw_head(shoulder_position):
-    """
-    Draw the head as a circle directly above the shoulders.
-    """
-    head_x = shoulder_position[0]
-    head_y = shoulder_position[1] - head_radius - 5  # Positioned right above shoulders
-
-    pygame.draw.circle(screen, colors["head"], (int(head_x), int(head_y)), head_radius)
-
-def draw_stick_figure(current_time):
-    """
-    Draw the entire stick figure with both legs, torso, and head.
-    """
-    right_joints = calculate_joint_positions(current_time, "right")
-    left_joints = calculate_joint_positions(current_time, "left")
-
-    draw_leg(right_joints, colors["right_leg"])
-    draw_leg(left_joints, colors["left_leg"])
-
-    shoulder_position = draw_torso()  # Get shoulder position
-    draw_head(shoulder_position)  # Pass shoulder position to head function
-
-    pygame.draw.line(screen, (0, 0, 0), (0, ground_y), (SCREEN_WIDTH, ground_y), 2)
-
-# Main loop
-running = True
-current_time = 0
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-    screen.fill((255, 255, 255))
-
-    current_time += step_speed
-    angles["β16"] = math.pi / 6 * math.sin(current_time)
-    angles["β13"] = -math.pi / 4 * math.sin(current_time + math.pi / 2)
-    angles["β34"] = math.pi / 8 * math.sin(current_time)
-
-    draw_stick_figure(current_time)
-    pygame.display.flip()
-    clock.tick(60)
-
-pygame.quit()
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Program terminated.")
