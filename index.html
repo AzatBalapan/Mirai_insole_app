@@ -558,18 +558,20 @@
         let rightKneeAngle = 0;
         let rightFootAngle = 0;
 
+        let rightHipAngle = 0;
+        let leftHipAngle = 0;
+
+
         function drawSkeleton() {
             ctx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
 
             /************************************************/
             /*                DRAW TORSO + HEAD             */
             /************************************************/
-            // Simple rectangle or ellipse for torso
             ctx.fillStyle = "#ccc";
             ctx.beginPath();
             ctx.ellipse(torsoX, torsoY + torsoHeight / 2, 20, torsoHeight / 2, 0, 0, 2 * Math.PI);
             ctx.fill();
-
 
             // Head
             ctx.beginPath();
@@ -577,21 +579,23 @@
             ctx.arc(torsoX, torsoY - headRadius - 5, headRadius, 0, 2 * Math.PI);
             ctx.fill();
 
-            // Mark left hip + right hip with small circles
+            /************************************************/
+            /*           FIXED COMMON HIP PIVOT             */
+            /************************************************/
+            const hipX = torsoX;  // Common hip pivot
+            const hipY = torsoY + torsoHeight;
+
+            // Draw single (unified) hip pivot
             ctx.fillStyle = "red";
             ctx.beginPath();
-            ctx.arc(leftHipX, hipY, 5, 0, 2*Math.PI);
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(rightHipX, hipY, 5, 0, 2*Math.PI);
+            ctx.arc(hipX, hipY, 5, 0, 2 * Math.PI);
             ctx.fill();
 
             /************************************************/
             /*           DRAW LEFT LEG (hip -> knee -> foot)*/
             /************************************************/
-            const leftKneeX = leftHipX + thighLength * Math.sin(leftKneeAngle);
-            const leftKneeY = hipY + thighLength * Math.cos(leftKneeAngle);
+            const leftKneeX = hipX + thighLength * Math.sin(leftHipAngle + leftKneeAngle);
+            const leftKneeY = hipY + thighLength * Math.cos(leftHipAngle + leftKneeAngle);
 
             const leftFootX = leftKneeX + legLength * Math.sin(leftKneeAngle + leftFootAngle);
             const leftFootY = leftKneeY + legLength * Math.cos(leftKneeAngle + leftFootAngle);
@@ -600,7 +604,7 @@
             ctx.strokeStyle = "blue";
             ctx.lineWidth = 5;
             ctx.beginPath();
-            ctx.moveTo(leftHipX, hipY);
+            ctx.moveTo(hipX, hipY);
             ctx.lineTo(leftKneeX, leftKneeY);
             ctx.stroke();
 
@@ -614,19 +618,19 @@
             // Knee + foot circles
             ctx.fillStyle = "blue";
             ctx.beginPath();
-            ctx.arc(leftKneeX, leftKneeY, 5, 0, 2*Math.PI);
+            ctx.arc(leftKneeX, leftKneeY, 5, 0, 2 * Math.PI);
             ctx.fill();
 
             ctx.fillStyle = "purple";
             ctx.beginPath();
-            ctx.arc(leftFootX, leftFootY, 5, 0, 2*Math.PI);
+            ctx.arc(leftFootX, leftFootY, 5, 0, 2 * Math.PI);
             ctx.fill();
 
             /************************************************/
             /*          DRAW RIGHT LEG (hip -> knee -> foot)*/
             /************************************************/
-            const rightKneeX = rightHipX + thighLength * Math.sin(rightKneeAngle);
-            const rightKneeY = hipY + thighLength * Math.cos(rightKneeAngle);
+            const rightKneeX = hipX + thighLength * Math.sin(rightHipAngle + rightKneeAngle);
+            const rightKneeY = hipY + thighLength * Math.cos(rightHipAngle + rightKneeAngle);
 
             const rightFootX = rightKneeX + legLength * Math.sin(rightKneeAngle + rightFootAngle);
             const rightFootY = rightKneeY + legLength * Math.cos(rightKneeAngle + rightFootAngle);
@@ -635,7 +639,7 @@
             ctx.strokeStyle = "blue";
             ctx.lineWidth = 5;
             ctx.beginPath();
-            ctx.moveTo(rightHipX, hipY);
+            ctx.moveTo(hipX, hipY);
             ctx.lineTo(rightKneeX, rightKneeY);
             ctx.stroke();
 
@@ -649,25 +653,32 @@
             // Knee + foot circles
             ctx.fillStyle = "blue";
             ctx.beginPath();
-            ctx.arc(rightKneeX, rightKneeY, 5, 0, 2*Math.PI);
+            ctx.arc(rightKneeX, rightKneeY, 5, 0, 2 * Math.PI);
             ctx.fill();
 
             ctx.fillStyle = "purple";
             ctx.beginPath();
-            ctx.arc(rightFootX, rightFootY, 5, 0, 2*Math.PI);
+            ctx.arc(rightFootX, rightFootY, 5, 0, 2 * Math.PI);
             ctx.fill();
         }
 
+
+
         // interpret angles from the server
         function updateAngles(data) {
-            // data might have leftPitch1, leftPitch2 for left knee/foot
-            // and rightPitch1, rightPitch2 for right knee/foot
-            leftKneeAngle  = (data.leftPitch1  * Math.PI) / 180;
-            leftFootAngle  = (data.leftPitch2  * Math.PI) / 180;
-            rightKneeAngle = (data.rightPitch1 * Math.PI) / 180;
-            rightFootAngle = (data.rightPitch2 * Math.PI) / 180;
-            // roll angles could be used if you want rotation about another axis, etc.
+            // Assign knee and foot pivots from ESP32_Right_Leg
+            rightKneeAngle = (data.rightPitch1 * Math.PI) / 180; // First entry → Right knee
+            rightFootAngle = (data.rightPitch2 * Math.PI) / 180; // Second entry → Right foot
+
+            // Assign knee and foot pivots from ESP32_Left_Leg
+            leftKneeAngle = (data.leftPitch1 * Math.PI) / 180; // First entry → Left knee
+            leftFootAngle = (data.leftPitch2 * Math.PI) / 180; // Second entry → Left foot
+
+            // Assign hip pivots from ESP32_Hip
+            rightHipAngle = (data.hipPitch1 * Math.PI) / 180; // First entry → Right hip
+            leftHipAngle = (data.hipPitch2 * Math.PI) / 180;  // Second entry → Left hip
         }
+
 
         // 4) Animate loop
         function animateSkeleton() {
@@ -679,8 +690,15 @@
         // 5) Handle incoming IMU data
         imuSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            // e.g. data = { leftPitch1, leftPitch2, rightPitch1, rightPitch2, ... }
-            updateAngles(data);
+            // New fields for the hips
+            updateAngles({
+                rightPitch1: data.rightPitch1, // Right knee
+                rightPitch2: data.rightPitch2, // Right foot
+                leftPitch1: data.leftPitch1,   // Left knee
+                leftPitch2: data.leftPitch2,   // Left foot
+                hipPitch1: data.hipPitch1,     // Right hip
+                hipPitch2: data.hipPitch2      // Left hip
+            });
         };
 
     </script>

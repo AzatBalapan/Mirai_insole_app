@@ -92,27 +92,30 @@ class SingleInstance:
 
 # ------------------------ BLE Configuration ------------------------ #
 
-DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2", "ESP32_Right_Leg", "ESP32_Left_Leg", ]
+DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2", "ESP32_Right_Leg", "ESP32_Left_Leg", "ESP32_Hip"]
 
 SERVICE_UUIDS = {
     "ESP32_Sensor_1": "4fafc201-1fb5-459e-8fcc-c5c9c331914a",
     "ESP32_Sensor_2": "4fafc201-1fb5-459e-8fcc-c5c9c331914b",
     "ESP32_Right_Leg":    "5d6fce32-7d51-48c3-bb12-d11fba01e12f",
-    "ESP32_Left_Leg":    "6f8a93b6-41f7-4a1d-945f-4f7c92bd9583"
+    "ESP32_Left_Leg":    "6f8a93b6-41f7-4a1d-945f-4f7c92bd9583",
+    "ESP32_Hip": "8e6f19d2-3a6e-4c5e-b2f1-7d2b8f28a1c4"  # <--- New UUID for ESP32_Hip
 }
 
 CHARACTERISTIC_UUIDS = {
     "ESP32_Sensor_1": "beb5483e-36e1-4688-b7f5-ea07361b26a8",
     "ESP32_Sensor_2": "beb5483e-36e1-4688-b7f5-ea07361b26a9",
     "ESP32_Right_Leg":    "bafabc41-3b2b-4231-bdaf-e89a1bcbdf45",
-    "ESP32_Left_Leg":    "7ab6e928-9bd1-4a1c-a5b6-bce6b8d31f52"
+    "ESP32_Left_Leg":    "7ab6e928-9bd1-4a1c-a5b6-bce6b8d31f52",
+    "ESP32_Hip": "f39b1f4d-5e7c-45b8-8e2c-0a73f21d4e2f"  # <--- New UUID for ESP32_Hip
 }
 
 sensor_values = {
     'ESP32_Sensor_1': {'timestamp': 0, 'Left_Heel': 0, 'Left_Middle': 0, 'Left_Top': 0},
     'ESP32_Sensor_2': {'timestamp': 0, 'Right_Heel': 0, 'Right_Middle': 0, 'Right_Top': 0},
     "ESP32_Right_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""},
-    "ESP32_Left_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""}
+    "ESP32_Left_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""},
+    "ESP32_Hip": {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""}  # <--- New entry
 }
 
 sensor_values_lock = threading.Lock()
@@ -214,6 +217,10 @@ async def imu_websocket_endpoint(ws: WebSocket):
                 "rightPitch1":sensor_values["ESP32_Left_Leg"]["pitch1"],
                 "rightRoll2": sensor_values["ESP32_Left_Leg"]["roll2"],
                 "rightPitch2":sensor_values["ESP32_Left_Leg"]["pitch2"],
+                "hipRoll1": sensor_values["ESP32_Hip"]["roll1"],  # <--- Added Hip Data
+                "hipPitch1": sensor_values["ESP32_Hip"]["pitch1"],  # <--- Added Hip Data
+                "hipRoll2": sensor_values["ESP32_Hip"]["roll2"],  # <--- Added Hip Data
+                "hipPitch2": sensor_values["ESP32_Hip"]["pitch2"],  # <--- Added Hip Data
                 "timestamp":  sensor_values["ESP32_Right_Leg"]["timestamp"]
             }
             await ws.send_json(data)
@@ -251,7 +258,7 @@ async def process_sensor_data(device_name, data_str):
             print(f"[Foot] {device_name} => {values}")
 
         # 2) Otherwise, check if device is one of the IMUs
-        elif device_name in ["ESP32_Right_Leg", "ESP32_Left_Leg"]:
+        elif device_name in ["ESP32_Right_Leg", "ESP32_Left_Leg", "ESP32_Hip"]:
             vals = [float(val) for val in data_str.strip().split(',')]
             # Expect exactly 4 floats for IMU:
             #   0 => roll1
