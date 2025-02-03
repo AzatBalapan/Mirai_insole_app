@@ -19,6 +19,10 @@
     }
     #skeletonCanvas {
       background: #ffffff;
+      width: 100%;
+      height: auto;
+      max-width: 300px;
+      max-height: 400px;
     }
     #info {
       margin-top: 10px;
@@ -32,7 +36,7 @@
   </style>
 </head>
 <body>
-  <h1>IMU Controlled Skeleton (Single Leg)</h1>
+  <h1>Walking of a human side view</h1>
   <div id="canvasContainer">
     <canvas id="skeletonCanvas" width="600" height="500"></canvas>
   </div>
@@ -43,7 +47,7 @@
   </div>
 
   <script>
-    var ws = new WebSocket("ws://" + window.location.host + "/ws");
+    var ws = new WebSocket("ws://127.0.0.1:8000/ws");
 
     const canvas = document.getElementById("skeletonCanvas");
     const ctx = canvas.getContext("2d");

@@ -92,21 +92,27 @@ class SingleInstance:
 
 # ------------------------ BLE Configuration ------------------------ #
 
-DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2"]
+DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2", "ESP32_Right_Leg", "ESP32_Left_Leg", ]
 
 SERVICE_UUIDS = {
     "ESP32_Sensor_1": "4fafc201-1fb5-459e-8fcc-c5c9c331914a",
-    "ESP32_Sensor_2": "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+    "ESP32_Sensor_2": "4fafc201-1fb5-459e-8fcc-c5c9c331914b",
+    "ESP32_Right_Leg":    "5d6fce32-7d51-48c3-bb12-d11fba01e12f",
+    "ESP32_Left_Leg":    "6f8a93b6-41f7-4a1d-945f-4f7c92bd9583"
 }
 
 CHARACTERISTIC_UUIDS = {
     "ESP32_Sensor_1": "beb5483e-36e1-4688-b7f5-ea07361b26a8",
-    "ESP32_Sensor_2": "beb5483e-36e1-4688-b7f5-ea07361b26a9"
+    "ESP32_Sensor_2": "beb5483e-36e1-4688-b7f5-ea07361b26a9",
+    "ESP32_Right_Leg":    "bafabc41-3b2b-4231-bdaf-e89a1bcbdf45",
+    "ESP32_Left_Leg":    "7ab6e928-9bd1-4a1c-a5b6-bce6b8d31f52"
 }
 
 sensor_values = {
     'ESP32_Sensor_1': {'timestamp': 0, 'Left_Heel': 0, 'Left_Middle': 0, 'Left_Top': 0},
-    'ESP32_Sensor_2': {'timestamp': 0, 'Right_Heel': 0, 'Right_Middle': 0, 'Right_Top': 0}
+    'ESP32_Sensor_2': {'timestamp': 0, 'Right_Heel': 0, 'Right_Middle': 0, 'Right_Top': 0},
+    "ESP32_Right_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""},
+    "ESP32_Left_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""}
 }
 
 sensor_values_lock = threading.Lock()
@@ -190,28 +196,89 @@ def process_image():
 
     return insole_c
 
+from fastapi import WebSocket
+@app.websocket("/ws")
+async def imu_websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+    print("[WebSocket] IMU client connected.")
+    try:
+        while True:
+            # Suppose you only have 1 IMU device "ESP32_Right_Leg"
+            # If you have two, adapt accordingly
+            data = {
+                "leftRoll1":  sensor_values["ESP32_Right_Leg"]["roll1"],
+                "leftPitch1": sensor_values["ESP32_Right_Leg"]["pitch1"],
+                "leftRoll2":  sensor_values["ESP32_Right_Leg"]["roll2"],
+                "leftPitch2": sensor_values["ESP32_Right_Leg"]["pitch2"],
+                "rightRoll1": sensor_values["ESP32_Left_Leg"]["roll1"],
+                "rightPitch1":sensor_values["ESP32_Left_Leg"]["pitch1"],
+                "rightRoll2": sensor_values["ESP32_Left_Leg"]["roll2"],
+                "rightPitch2":sensor_values["ESP32_Left_Leg"]["pitch2"],
+                "timestamp":  sensor_values["ESP32_Right_Leg"]["timestamp"]
+            }
+            await ws.send_json(data)
+            await asyncio.sleep(0.05)
+    except Exception as e:
+        print(f"[WebSocket] Disconnected: {e}")
 
 # ------------------------ BLE Data Processing ------------------------ #
 
 async def process_sensor_data(device_name, data_str):
     try:
-        values = [int(val) for val in data_str.strip().split(',')]
-        print(f"Raw values from {device_name}: {values}")
-        current_timestamp = time.time()
-        with sensor_values_lock:
-            if device_name == "ESP32_Sensor_1":
-                sensor_values['ESP32_Sensor_1']['timestamp'] = current_timestamp
-                sensor_values['ESP32_Sensor_1']['Left_Heel'] = values[0]
-                sensor_values['ESP32_Sensor_1']['Left_Middle'] = values[1]
-                sensor_values['ESP32_Sensor_1']['Left_Top'] = values[2]
-            elif device_name == "ESP32_Sensor_2":
-                sensor_values['ESP32_Sensor_2']['timestamp'] = current_timestamp
-                sensor_values['ESP32_Sensor_2']['Right_Heel'] = values[0]
-                sensor_values['ESP32_Sensor_2']['Right_Middle'] = values[1]
-                sensor_values['ESP32_Sensor_2']['Right_Top'] = values[2]
+        # 1) Check if device is one of the foot sensors
+        if device_name in ["ESP32_Sensor_1", "ESP32_Sensor_2"]:
+            values = [int(val) for val in data_str.strip().split(',')]
+            # Expect exactly 3 integers from the foot sensors:
+            #   0 => Heel
+            #   1 => Middle
+            #   2 => Top
+            if len(values) != 3:
+                print(f"Warning: Expected 3 integers for {device_name}, got {len(values)}: {values}")
+                return
+
+            current_timestamp = time.time()
+            with sensor_values_lock:
+                sensor_values[device_name]['timestamp'] = current_timestamp
+                if device_name == "ESP32_Sensor_1":
+                    sensor_values["ESP32_Sensor_1"]['Left_Heel'] = values[0]
+                    sensor_values["ESP32_Sensor_1"]['Left_Middle'] = values[1]
+                    sensor_values["ESP32_Sensor_1"]['Left_Top'] = values[2]
+                else:  # ESP32_Sensor_2
+                    sensor_values["ESP32_Sensor_2"]['Right_Heel'] = values[0]
+                    sensor_values["ESP32_Sensor_2"]['Right_Middle'] = values[1]
+                    sensor_values["ESP32_Sensor_2"]['Right_Top'] = values[2]
+
+            print(f"[Foot] {device_name} => {values}")
+
+        # 2) Otherwise, check if device is one of the IMUs
+        elif device_name in ["ESP32_Right_Leg", "ESP32_Left_Leg"]:
+            vals = [float(val) for val in data_str.strip().split(',')]
+            # Expect exactly 4 floats for IMU:
+            #   0 => roll1
+            #   1 => pitch1
+            #   2 => roll2
+            #   3 => pitch2
+            if len(vals) != 4:
+                print(f"Warning: Expected 4 floats for {device_name}, got {len(vals)}: {vals}")
+                return
+
+            r1, p1, r2, p2 = vals
+            timestamp_str = time.strftime("%H:%M:%S")
+            with sensor_values_lock:
+                sensor_values[device_name]['roll1'] = r1
+                sensor_values[device_name]['pitch1'] = p1
+                sensor_values[device_name]['roll2'] = r2
+                sensor_values[device_name]['pitch2'] = p2
+                sensor_values[device_name]['timestamp'] = timestamp_str
+
+            print(f"[IMU] {device_name} => roll1={r1}, pitch1={p1}, roll2={r2}, pitch2={p2}, time={timestamp_str}")
+
+        else:
+            # Not recognized
+            print(f"Unknown device: {device_name}, raw data: {data_str}")
+
     except Exception as e:
         print(f"Error processing data from {device_name}: {e}")
-
 
 # ------------------------ BLE Connection Management ------------------------ #
 

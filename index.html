@@ -85,7 +85,7 @@
             background-color: white;
         }
 
-        /* Right side: replaced the human model with a mirrored GIF */
+        /* Right side: now holds our IMU skeleton canvas */
         .right-model {
             width: 300px;
             height: 400px;
@@ -152,6 +152,15 @@
             margin-top:20px;
             margin-bottom:20px;
         }
+
+        /* Canvas style for the skeleton */
+        #skeletonCanvas {
+            background: #ffffff;
+            /* Enough to fit inside right-model, or you can do 300x400, etc. */
+            width: 300px;
+            height: 400px;
+        }
+
     </style>
 </head>
 <body>
@@ -183,9 +192,10 @@
         <!-- Middle insole SVG remains -->
         <svg id="insoleSvg"></svg>
 
-        <!-- Right side: mirrored walking GIF -->
+        <!-- Right side: replaced the mirrored GIF with a skeleton canvas -->
         <div class="right-model">
-            <img src="/static/exercise-walk.gif" alt="Walking Left" style="width:300px; height:400px; transform: scaleX(-1);" />
+            <!-- Our skeleton canvas -->
+            <canvas id="skeletonCanvas" width="300" height="400"></canvas>
         </div>
     </div>
 
@@ -236,7 +246,9 @@
     <!-- Scripts -->
     <script src="/static/d3.v6.min.js"></script>
     <script>
-        // We removed the chart; keep the maximum data points if needed in the future:
+        /****************************************************/
+        /*            FOOT SENSOR + INSOLE CODE             */
+        /****************************************************/
         var maxDataPoints = 50;
 
         // Insole contour data
@@ -398,7 +410,7 @@
             iterationCount = 0;
         }
 
-        // Periodically fetch sensor values
+        // Periodically fetch sensor values (foot sensors)
         function fetchSensorValues() {
             fetch('/get_sensor_values')
             .then(response => response.json())
@@ -436,11 +448,13 @@
             });
         }
 
-        // Initiate fetch loops
+        // Initiate foot sensor fetch loops
         fetchInsoleContours();
         setInterval(fetchSensorValues, 100);
 
-        // Recording logic
+        /****************************************************/
+        /*               RECORDING BUTTON LOGIC             */
+        /****************************************************/
         var isRecording = false;
         var recordButton = document.getElementById("recordButton");
 
@@ -509,6 +523,166 @@
                 console.error("Error stopping recording:", error);
             });
         }
+
+        /****************************************************/
+        /*         IMU SKELETON CODE for TWO LEGS           */
+        /****************************************************/
+
+        // 1) Open a WebSocket connection to receive IMU data (both left & right)
+        var imuSocket = new WebSocket("ws://127.0.0.1:8000/ws");
+
+        // 2) Canvas and context
+        const skeletonCanvas = document.getElementById("skeletonCanvas");
+        const ctx = skeletonCanvas.getContext("2d");
+
+        // 3) Basic geometry for the “torso”
+        const torsoX = 150;   // center
+        const torsoY = 140;   // top of torso
+        const torsoHeight = 80;
+        const headRadius = 20;
+
+        // For each leg, we measure from hip → knee → foot
+        // We'll place left hip some x offset to the left, right hip offset to the right
+        const leftHipX  = torsoX;
+        const rightHipX = torsoX;
+        const hipY      = torsoY + torsoHeight; // both hips at same y
+
+        const thighLength = 60;
+        const legLength   = 60;
+
+        // We'll store angles for left leg
+        let leftKneeAngle = 0;
+        let leftFootAngle = 0;
+
+        // ...and for right leg
+        let rightKneeAngle = 0;
+        let rightFootAngle = 0;
+
+        function drawSkeleton() {
+            ctx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+
+            /************************************************/
+            /*                DRAW TORSO + HEAD             */
+            /************************************************/
+            // Simple rectangle or ellipse for torso
+            ctx.fillStyle = "#ccc";
+            ctx.beginPath();
+            ctx.ellipse(torsoX, torsoY + torsoHeight / 2, 20, torsoHeight / 2, 0, 0, 2 * Math.PI);
+            ctx.fill();
+
+
+            // Head
+            ctx.beginPath();
+            ctx.fillStyle = "#c69";
+            ctx.arc(torsoX, torsoY - headRadius - 5, headRadius, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Mark left hip + right hip with small circles
+            ctx.fillStyle = "red";
+            ctx.beginPath();
+            ctx.arc(leftHipX, hipY, 5, 0, 2*Math.PI);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(rightHipX, hipY, 5, 0, 2*Math.PI);
+            ctx.fill();
+
+            /************************************************/
+            /*           DRAW LEFT LEG (hip -> knee -> foot)*/
+            /************************************************/
+            const leftKneeX = leftHipX + thighLength * Math.sin(leftKneeAngle);
+            const leftKneeY = hipY + thighLength * Math.cos(leftKneeAngle);
+
+            const leftFootX = leftKneeX + legLength * Math.sin(leftKneeAngle + leftFootAngle);
+            const leftFootY = leftKneeY + legLength * Math.cos(leftKneeAngle + leftFootAngle);
+
+            // Thigh
+            ctx.strokeStyle = "blue";
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(leftHipX, hipY);
+            ctx.lineTo(leftKneeX, leftKneeY);
+            ctx.stroke();
+
+            // Lower leg
+            ctx.strokeStyle = "green";
+            ctx.beginPath();
+            ctx.moveTo(leftKneeX, leftKneeY);
+            ctx.lineTo(leftFootX, leftFootY);
+            ctx.stroke();
+
+            // Knee + foot circles
+            ctx.fillStyle = "blue";
+            ctx.beginPath();
+            ctx.arc(leftKneeX, leftKneeY, 5, 0, 2*Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = "purple";
+            ctx.beginPath();
+            ctx.arc(leftFootX, leftFootY, 5, 0, 2*Math.PI);
+            ctx.fill();
+
+            /************************************************/
+            /*          DRAW RIGHT LEG (hip -> knee -> foot)*/
+            /************************************************/
+            const rightKneeX = rightHipX + thighLength * Math.sin(rightKneeAngle);
+            const rightKneeY = hipY + thighLength * Math.cos(rightKneeAngle);
+
+            const rightFootX = rightKneeX + legLength * Math.sin(rightKneeAngle + rightFootAngle);
+            const rightFootY = rightKneeY + legLength * Math.cos(rightKneeAngle + rightFootAngle);
+
+            // Thigh
+            ctx.strokeStyle = "blue";
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(rightHipX, hipY);
+            ctx.lineTo(rightKneeX, rightKneeY);
+            ctx.stroke();
+
+            // Lower leg
+            ctx.strokeStyle = "green";
+            ctx.beginPath();
+            ctx.moveTo(rightKneeX, rightKneeY);
+            ctx.lineTo(rightFootX, rightFootY);
+            ctx.stroke();
+
+            // Knee + foot circles
+            ctx.fillStyle = "blue";
+            ctx.beginPath();
+            ctx.arc(rightKneeX, rightKneeY, 5, 0, 2*Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = "purple";
+            ctx.beginPath();
+            ctx.arc(rightFootX, rightFootY, 5, 0, 2*Math.PI);
+            ctx.fill();
+        }
+
+        // interpret angles from the server
+        function updateAngles(data) {
+            // data might have leftPitch1, leftPitch2 for left knee/foot
+            // and rightPitch1, rightPitch2 for right knee/foot
+            leftKneeAngle  = (data.leftPitch1  * Math.PI) / 180;
+            leftFootAngle  = (data.leftPitch2  * Math.PI) / 180;
+            rightKneeAngle = (data.rightPitch1 * Math.PI) / 180;
+            rightFootAngle = (data.rightPitch2 * Math.PI) / 180;
+            // roll angles could be used if you want rotation about another axis, etc.
+        }
+
+        // 4) Animate loop
+        function animateSkeleton() {
+            drawSkeleton();
+            requestAnimationFrame(animateSkeleton);
+        }
+        animateSkeleton();
+
+        // 5) Handle incoming IMU data
+        imuSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            // e.g. data = { leftPitch1, leftPitch2, rightPitch1, rightPitch2, ... }
+            updateAngles(data);
+        };
+
     </script>
 </body>
 </html>
