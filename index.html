@@ -185,8 +185,8 @@
 
     <div class="layout-container">
         <!-- Left side: walking GIF (normal orientation) -->
-        <div class="left-chart">
-            <img src="/static/exercise-walk.gif" alt="Walking Right" style="width:300px; height:400px;" />
+        <div  class="left-chart">
+            <img src="/static/exercise-walk.gif" id="Walk" alt="Walking Right" style="width:300px; height:400px;" />
         </div>
 
         <!-- Middle insole SVG remains -->
@@ -246,6 +246,21 @@
     <!-- Scripts -->
     <script src="/static/d3.v6.min.js"></script>
     <script>
+        //gif looper logic
+
+        const gifLooper = document.getElementById("Walk");
+        var imuSocket = new WebSocket("ws://127.0.0.1:8000/ws");
+
+        imuSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            //gif loop
+            if (data.left_ax1 == "0") {
+                gifLooper.src = "/static/exercise-walk.gif";
+            }
+        };
+    </script>
+    <script>
         /****************************************************/
         /*            FOOT SENSOR + INSOLE CODE             */
         /****************************************************/
@@ -254,16 +269,18 @@
         // Insole contour data
         var insoleContours;
 
-        // Sensor values
+        // Sensor values for Left and Right insoles
         var sensorValuesLeft = {
-            'Left_Heel': 0,
-            'Left_Middle': 0,
-            'Left_Top': 0
+            'Left_Region_1': 0,
+            'Left_Region_2': 0,
+            'Left_Region_3': 0,
+            'Left_Region_4': 0
         };
         var sensorValuesRight = {
-            'Right_Heel': 0,
-            'Right_Middle': 0,
-            'Right_Top': 0
+            'Right_Region_1': 0,
+            'Right_Region_2': 0,
+            'Right_Region_3': 0,
+            'Right_Region_4': 0
         };
 
         // Asymmetry variables
@@ -325,6 +342,8 @@
             var xExtent = d3.extent(allPoints, function(d) { return d[0]; });
             var yExtent = d3.extent(allPoints, function(d) { return d[1]; });
 
+            console.log("xExtent:", xExtent, "yExtent:", yExtent);
+
             var margin = 90;
             var width = 600;
             var height = 600;
@@ -346,6 +365,8 @@
                     var scaledPoints = points.map(function(d) {
                         return [xScale(d[0]), yScale(d[1])];
                     });
+                    console.log("Scaled points for", partName, ":", scaledPoints);
+
                     var pathData = d3.line()(scaledPoints) + 'Z';
 
                     svg.append('path')
@@ -357,6 +378,7 @@
                 }
             }
         }
+
 
         // Update colors on the insole based on sensor values
         function updateInsoleColors() {
@@ -416,24 +438,28 @@
             .then(response => response.json())
             .then(data => {
                 // Update sensor values
-                sensorValuesLeft['Left_Heel']   = data['Left_Heel'];
-                sensorValuesLeft['Left_Middle'] = data['Left_Middle'];
-                sensorValuesLeft['Left_Top']    = data['Left_Top'];
+                sensorValuesLeft['Left_Region_1'] = data['Left_Region_1'];
+                sensorValuesLeft['Left_Region_2'] = data['Left_Region_2'];
+                sensorValuesLeft['Left_Region_3'] = data['Left_Region_3'];
+                sensorValuesLeft['Left_Region_4'] = data['Left_Region_4'];
 
-                sensorValuesRight['Right_Heel']   = data['Right_Heel'];
-                sensorValuesRight['Right_Middle'] = data['Right_Middle'];
-                sensorValuesRight['Right_Top']    = data['Right_Top'];
+                sensorValuesRight['Right_Region_1'] = data['Right_Region_1'];
+                sensorValuesRight['Right_Region_2'] = data['Right_Region_2'];
+                sensorValuesRight['Right_Region_3'] = data['Right_Region_3'];
+                sensorValuesRight['Right_Region_4'] = data['Right_Region_4'];
 
                 // Update insole visualization
                 updateInsoleColors();
 
                 // For asymmetry
-                var leftLoad = sensorValuesLeft['Left_Heel']
-                             + sensorValuesLeft['Left_Middle']
-                             + sensorValuesLeft['Left_Top'];
-                var rightLoad = sensorValuesRight['Right_Heel']
-                              + sensorValuesRight['Right_Middle']
-                              + sensorValuesRight['Right_Top'];
+                var leftLoad = sensorValuesLeft['Left_Region_1']
+                             + sensorValuesLeft['Left_Region_2']
+                             + sensorValuesLeft['Left_Region_3']
+                             + sensorValuesLeft['Left_Region_4'];
+                var rightLoad = sensorValuesRight['Right_Region_1']
+                              + sensorValuesRight['Right_Region_2']
+                              + sensorValuesRight['Right_Region_3']
+                              + sensorValuesRight['Right_Region_4'];
 
                 leftLoads.push(leftLoad);
                 rightLoads.push(rightLoad);
@@ -523,183 +549,6 @@
                 console.error("Error stopping recording:", error);
             });
         }
-
-        /****************************************************/
-        /*         IMU SKELETON CODE for TWO LEGS           */
-        /****************************************************/
-
-        // 1) Open a WebSocket connection to receive IMU data (both left & right)
-        var imuSocket = new WebSocket("ws://127.0.0.1:8000/ws");
-
-        // 2) Canvas and context
-        const skeletonCanvas = document.getElementById("skeletonCanvas");
-        const ctx = skeletonCanvas.getContext("2d");
-
-        // 3) Basic geometry for the “torso”
-        const torsoX = 150;   // center
-        const torsoY = 140;   // top of torso
-        const torsoHeight = 80;
-        const headRadius = 20;
-
-        // For each leg, we measure from hip → knee → foot
-        // We'll place left hip some x offset to the left, right hip offset to the right
-        const leftHipX  = torsoX;
-        const rightHipX = torsoX;
-        const hipY      = torsoY + torsoHeight; // both hips at same y
-
-        const thighLength = 60;
-        const legLength   = 60;
-
-        // We'll store angles for left leg
-        let leftKneeAngle = 0;
-        let leftFootAngle = 0;
-
-        // ...and for right leg
-        let rightKneeAngle = 0;
-        let rightFootAngle = 0;
-
-        let rightHipAngle = 0;
-        let leftHipAngle = 0;
-
-
-        function drawSkeleton() {
-            ctx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
-
-            /************************************************/
-            /*                DRAW TORSO + HEAD             */
-            /************************************************/
-            ctx.fillStyle = "#ccc";
-            ctx.beginPath();
-            ctx.ellipse(torsoX, torsoY + torsoHeight / 2, 20, torsoHeight / 2, 0, 0, 2 * Math.PI);
-            ctx.fill();
-
-            // Head
-            ctx.beginPath();
-            ctx.fillStyle = "#c69";
-            ctx.arc(torsoX, torsoY - headRadius - 5, headRadius, 0, 2 * Math.PI);
-            ctx.fill();
-
-            /************************************************/
-            /*           FIXED COMMON HIP PIVOT             */
-            /************************************************/
-            const hipX = torsoX;  // Common hip pivot
-            const hipY = torsoY + torsoHeight;
-
-            // Draw single (unified) hip pivot
-            ctx.fillStyle = "red";
-            ctx.beginPath();
-            ctx.arc(hipX, hipY, 5, 0, 2 * Math.PI);
-            ctx.fill();
-
-            /************************************************/
-            /*           DRAW LEFT LEG (hip -> knee -> foot)*/
-            /************************************************/
-            const leftKneeX = hipX + thighLength * Math.sin(leftHipAngle + leftKneeAngle);
-            const leftKneeY = hipY + thighLength * Math.cos(leftHipAngle + leftKneeAngle);
-
-            const leftFootX = leftKneeX + legLength * Math.sin(leftKneeAngle + leftFootAngle);
-            const leftFootY = leftKneeY + legLength * Math.cos(leftKneeAngle + leftFootAngle);
-
-            // Thigh
-            ctx.strokeStyle = "blue";
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.moveTo(hipX, hipY);
-            ctx.lineTo(leftKneeX, leftKneeY);
-            ctx.stroke();
-
-            // Lower leg
-            ctx.strokeStyle = "green";
-            ctx.beginPath();
-            ctx.moveTo(leftKneeX, leftKneeY);
-            ctx.lineTo(leftFootX, leftFootY);
-            ctx.stroke();
-
-            // Knee + foot circles
-            ctx.fillStyle = "blue";
-            ctx.beginPath();
-            ctx.arc(leftKneeX, leftKneeY, 5, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.fillStyle = "purple";
-            ctx.beginPath();
-            ctx.arc(leftFootX, leftFootY, 5, 0, 2 * Math.PI);
-            ctx.fill();
-
-            /************************************************/
-            /*          DRAW RIGHT LEG (hip -> knee -> foot)*/
-            /************************************************/
-            const rightKneeX = hipX + thighLength * Math.sin(rightHipAngle + rightKneeAngle);
-            const rightKneeY = hipY + thighLength * Math.cos(rightHipAngle + rightKneeAngle);
-
-            const rightFootX = rightKneeX + legLength * Math.sin(rightKneeAngle + rightFootAngle);
-            const rightFootY = rightKneeY + legLength * Math.cos(rightKneeAngle + rightFootAngle);
-
-            // Thigh
-            ctx.strokeStyle = "blue";
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.moveTo(hipX, hipY);
-            ctx.lineTo(rightKneeX, rightKneeY);
-            ctx.stroke();
-
-            // Lower leg
-            ctx.strokeStyle = "green";
-            ctx.beginPath();
-            ctx.moveTo(rightKneeX, rightKneeY);
-            ctx.lineTo(rightFootX, rightFootY);
-            ctx.stroke();
-
-            // Knee + foot circles
-            ctx.fillStyle = "blue";
-            ctx.beginPath();
-            ctx.arc(rightKneeX, rightKneeY, 5, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.fillStyle = "purple";
-            ctx.beginPath();
-            ctx.arc(rightFootX, rightFootY, 5, 0, 2 * Math.PI);
-            ctx.fill();
-        }
-
-
-
-        // interpret angles from the server
-        function updateAngles(data) {
-            // Assign knee and foot pivots from ESP32_Right_Leg
-            rightKneeAngle = (data.rightPitch1 * Math.PI) / 180; // First entry → Right knee
-            rightFootAngle = (data.rightPitch2 * Math.PI) / 180; // Second entry → Right foot
-
-            // Assign knee and foot pivots from ESP32_Left_Leg
-            leftKneeAngle = (data.leftPitch1 * Math.PI) / 180; // First entry → Left knee
-            leftFootAngle = (data.leftPitch2 * Math.PI) / 180; // Second entry → Left foot
-
-            // Assign hip pivots from ESP32_Hip
-            rightHipAngle = (data.hipPitch1 * Math.PI) / 180; // First entry → Right hip
-            leftHipAngle = (data.hipPitch2 * Math.PI) / 180;  // Second entry → Left hip
-        }
-
-
-        // 4) Animate loop
-        function animateSkeleton() {
-            drawSkeleton();
-            requestAnimationFrame(animateSkeleton);
-        }
-        animateSkeleton();
-
-        // 5) Handle incoming IMU data
-        imuSocket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            // New fields for the hips
-            updateAngles({
-                rightPitch1: data.rightPitch1, // Right knee
-                rightPitch2: data.rightPitch2, // Right foot
-                leftPitch1: data.leftPitch1,   // Left knee
-                leftPitch2: data.leftPitch2,   // Left foot
-                hipPitch1: data.hipPitch1,     // Right hip
-                hipPitch2: data.hipPitch2      // Left hip
-            });
-        };
 
     </script>
 </body>

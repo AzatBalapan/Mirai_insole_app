@@ -92,7 +92,8 @@ class SingleInstance:
 
 # ------------------------ BLE Configuration ------------------------ #
 
-DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2", "ESP32_Right_Leg", "ESP32_Left_Leg", "ESP32_Hip"]
+# DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2", "ESP32_Right_Leg", "ESP32_Left_Leg", "ESP32_Hip"]
+DEVICE_NAMES = ["ESP32_Sensor_1", "ESP32_Sensor_2", "ESP32_Left_Leg"]
 
 SERVICE_UUIDS = {
     "ESP32_Sensor_1": "4fafc201-1fb5-459e-8fcc-c5c9c331914a",
@@ -113,10 +114,11 @@ CHARACTERISTIC_UUIDS = {
 sensor_values = {
     'ESP32_Sensor_1': {'timestamp': 0, 'Left_Heel': 0, 'Left_Middle': 0, 'Left_Top': 0},
     'ESP32_Sensor_2': {'timestamp': 0, 'Right_Heel': 0, 'Right_Middle': 0, 'Right_Top': 0},
-    "ESP32_Right_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""},
-    "ESP32_Left_Leg":    {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""},
-    "ESP32_Hip": {"roll1": 0.0, "pitch1": 0.0, "roll2": 0.0, "pitch2": 0.0, "timestamp": ""}  # <--- New entry
+    # "ESP32_Right_Leg": {"is_movement": "0", "timestamp": ""},
+    "ESP32_Left_Leg": {"is_movement": "0", "timestamp": ""},
+    # "ESP32_Hip": {"is_movement": "0", "timestamp": ""}
 }
+
 
 sensor_values_lock = threading.Lock()
 
@@ -136,68 +138,83 @@ connected_clients = {}
 # ------------------------ Image Processing ------------------------ #
 
 def process_image():
-    image_path = os.path.join(BASE_PATH, 'static', 'insole_image.jpeg')
+    """
+    Processes the insole image to extract **four exact regions for each of the left and right insoles**,
+    mapping them according to predefined indices for ESP32_Sensor_1 and ESP32_Sensor_2.
+
+    Returns:
+        insole_c: A dictionary containing the contours for each of the 8 predefined regions.
+    """
+    # Load the processed insole image
+    image_path = os.path.join(BASE_PATH, 'static', 'processed_insole_image.png')
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
     if image is None:
         print(f"Error: Image at path '{image_path}' not found.")
         return None
 
-    desired_width = 600
-    desired_height = 600
-    image = cv2.resize(image, (desired_width, desired_height))
-
+    # Threshold the image to create a binary mask
     _, binary = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY_INV)
 
+    # Find all contours in the binary image
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    if not contours:
-        print("No contours found in the image.")
-        return None
 
+    # Calculate centroid x-coordinates for sorting left and right
     contour_centroids = []
     for cnt in contours:
         M = cv2.moments(cnt)
-        if M['m00'] != 0:
-            cx = int(M['m10'] / M['m00'])
-        else:
-            cx = 0
+        cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else 0
         contour_centroids.append((cnt, cx))
 
+    # Sort contours left-to-right based on centroid x-coordinates
     contour_centroids.sort(key=lambda x: x[1])
-    xs = [cx for cnt, cx in contour_centroids]
-    median_x = np.median(xs)
+    sorted_contours = [cnt for cnt, _ in contour_centroids]
 
-    left_contours = [cnt for cnt, cx in contour_centroids if cx < median_x]
-    right_contours = [cnt for cnt, cx in contour_centroids if cx >= median_x]
+    # Split into left and right contours using predefined indices
+    left_contours = [sorted_contours[i] for i in [0, 1, 2, 3]]
+    right_contours = [sorted_contours[i] for i in [4, 5, 6, 7]]
 
-    insole_c = {'Left': {}, 'Right': {}}
-    part_names = ["Heel", "Middle", "Top"]
+    # Define insole_c structure with sensor-based mapping
+    insole_c = {
+        'Left': {},
+        'Right': {}
+    }
 
+    # Define mapping (fixed indices)
+    sensor_2_contours = [1, 3, 5, 9]  # Indices for ESP32_Sensor_2
+    sensor_1_contours = [2, 4, 6, 10]  # Indices for ESP32_Sensor_1
+
+    # Define region names
+    region_names = ["Region_1", "Region_2", "Region_3", "Region_4"]
+
+    # Convert contour to list format
     def contour_to_list(contour):
         return contour[:, 0, :].tolist()
 
-    def assign_parts(contours, side):
-        contours.sort(key=lambda cnt: cv2.boundingRect(cnt)[1], reverse=True)
-        for i, part in enumerate(contours):
-            if i < len(part_names):
-                part_name = f"{side}_{part_names[i]}"
-            else:
-                part_name = f"{side}_Part_{i}"
-            insole_c[side][part_name] = contour_to_list(part)
+    # Assign contours based on predefined indices
+    for i, contour in enumerate(left_contours):
+        region_name = f"Left_{region_names[i]}"
+        if i in sensor_2_indices:
+            sensor = "ESP32_Sensor_2"
+        else:
+            sensor = "ESP32_Sensor_1"
+        insole_c["Left"][region_name] = {"sensor": sensor, "contour": contour_to_list(contour)}
 
-        for part_name in part_names:
-            key = f"{side}_{part_name}"
-            if key not in insole_c[side]:
-                insole_c[side][key] = []
+    for i, contour in enumerate(right_contours):
+        region_name = f"Right_{region_names[i]}"
+        if i in sensor_2_indices:
+            sensor = "ESP32_Sensor_2"
+        else:
+            sensor = "ESP32_Sensor_1"
+        insole_c["Right"][region_name] = {"sensor": sensor, "contour": contour_to_list(contour)}
 
-    assign_parts(left_contours, 'Left')
-    assign_parts(right_contours, 'Right')
-
-    print("Left insole parts:", list(insole_c['Left'].keys()))
-    print("Right insole parts:", list(insole_c['Right'].keys()))
+    print("Insole regions assigned:")
+    print("Left:", list(insole_c["Left"].keys()))
+    print("Right:", list(insole_c["Right"].keys()))
 
     return insole_c
+
 
 from fastapi import WebSocket
 @app.websocket("/ws")
@@ -206,86 +223,72 @@ async def imu_websocket_endpoint(ws: WebSocket):
     print("[WebSocket] IMU client connected.")
     try:
         while True:
-            # Suppose you only have 1 IMU device "ESP32_Right_Leg"
-            # If you have two, adapt accordingly
             data = {
-                "leftRoll1":  sensor_values["ESP32_Right_Leg"]["roll1"],
-                "leftPitch1": sensor_values["ESP32_Right_Leg"]["pitch1"],
-                "leftRoll2":  sensor_values["ESP32_Right_Leg"]["roll2"],
-                "leftPitch2": sensor_values["ESP32_Right_Leg"]["pitch2"],
-                "rightRoll1": sensor_values["ESP32_Left_Leg"]["roll1"],
-                "rightPitch1":sensor_values["ESP32_Left_Leg"]["pitch1"],
-                "rightRoll2": sensor_values["ESP32_Left_Leg"]["roll2"],
-                "rightPitch2":sensor_values["ESP32_Left_Leg"]["pitch2"],
-                "hipRoll1": sensor_values["ESP32_Hip"]["roll1"],  # <--- Added Hip Data
-                "hipPitch1": sensor_values["ESP32_Hip"]["pitch1"],  # <--- Added Hip Data
-                "hipRoll2": sensor_values["ESP32_Hip"]["roll2"],  # <--- Added Hip Data
-                "hipPitch2": sensor_values["ESP32_Hip"]["pitch2"],  # <--- Added Hip Data
-                "timestamp":  sensor_values["ESP32_Right_Leg"]["timestamp"]
+                # "right_ax1": sensor_values["ESP32_Right_Leg"]["is_movement"],
+
+                "left_ax1": sensor_values["ESP32_Left_Leg"]["is_movement"],
+
+                # "hip_ax1": sensor_values["ESP32_Hip"]["is_movement"],
+
+                # "timestamp": sensor_values["ESP32_Right_Leg"]["timestamp"]
             }
             await ws.send_json(data)
             await asyncio.sleep(0.05)
     except Exception as e:
         print(f"[WebSocket] Disconnected: {e}")
 
+
 # ------------------------ BLE Data Processing ------------------------ #
 
 async def process_sensor_data(device_name, data_str):
     try:
-        # 1) Check if device is one of the foot sensors
+        # Check if device is one of the foot sensors
         if device_name in ["ESP32_Sensor_1", "ESP32_Sensor_2"]:
             values = [int(val) for val in data_str.strip().split(',')]
-            # Expect exactly 3 integers from the foot sensors:
-            #   0 => Heel
-            #   1 => Middle
-            #   2 => Top
-            if len(values) != 3:
-                print(f"Warning: Expected 3 integers for {device_name}, got {len(values)}: {values}")
+            if len(values) != 4:
+                print(f"Warning: Expected 4 values for {device_name}, got {len(values)}: {values}")
                 return
 
             current_timestamp = time.time()
             with sensor_values_lock:
                 sensor_values[device_name]['timestamp'] = current_timestamp
-                if device_name == "ESP32_Sensor_1":
-                    sensor_values["ESP32_Sensor_1"]['Left_Heel'] = values[0]
-                    sensor_values["ESP32_Sensor_1"]['Left_Middle'] = values[1]
-                    sensor_values["ESP32_Sensor_1"]['Left_Top'] = values[2]
-                else:  # ESP32_Sensor_2
-                    sensor_values["ESP32_Sensor_2"]['Right_Heel'] = values[0]
-                    sensor_values["ESP32_Sensor_2"]['Right_Middle'] = values[1]
-                    sensor_values["ESP32_Sensor_2"]['Right_Top'] = values[2]
+
+                if device_name == "ESP32_Sensor_1":  # Left foot
+                    sensor_values["ESP32_Sensor_1"]['Left_Region_1'] = values[0]
+                    sensor_values["ESP32_Sensor_1"]['Left_Region_2'] = values[1]
+                    sensor_values["ESP32_Sensor_1"]['Left_Region_3'] = values[2]
+                    sensor_values["ESP32_Sensor_1"]['Left_Region_4'] = values[3]
+
+                elif device_name == "ESP32_Sensor_2":  # Right foot
+                    sensor_values["ESP32_Sensor_2"]['Right_Region_1'] = values[0]
+                    sensor_values["ESP32_Sensor_2"]['Right_Region_2'] = values[1]
+                    sensor_values["ESP32_Sensor_2"]['Right_Region_3'] = values[2]
+                    sensor_values["ESP32_Sensor_2"]['Right_Region_4'] = values[3]
 
             print(f"[Foot] {device_name} => {values}")
 
-        # 2) Otherwise, check if device is one of the IMUs
-        elif device_name in ["ESP32_Right_Leg", "ESP32_Left_Leg", "ESP32_Hip"]:
-            vals = [float(val) for val in data_str.strip().split(',')]
-            # Expect exactly 4 floats for IMU:
-            #   0 => roll1
-            #   1 => pitch1
-            #   2 => roll2
-            #   3 => pitch2
-            if len(vals) != 4:
-                print(f"Warning: Expected 4 floats for {device_name}, got {len(vals)}: {vals}")
-                return
+        # 2) check if device is one of the IMUs
+        if device_name in ["ESP32_Right_Leg", "ESP32_Left_Leg", "ESP32_Hip"]:
+            # vals = [(val) for val in data_str.strip().split(',')]
+            # if len(vals) != 1:  # Expect exactly 2 bools
+            #     print(f"Warning: Expected 1 bool for {device_name}, got {len(vals)}: {vals}")
+            #     return
 
-            r1, p1, r2, p2 = vals
+            is_moved = data_str
             timestamp_str = time.strftime("%H:%M:%S")
+
             with sensor_values_lock:
-                sensor_values[device_name]['roll1'] = r1
-                sensor_values[device_name]['pitch1'] = p1
-                sensor_values[device_name]['roll2'] = r2
-                sensor_values[device_name]['pitch2'] = p2
+                sensor_values[device_name]['is_movement'] = is_moved
                 sensor_values[device_name]['timestamp'] = timestamp_str
 
-            print(f"[IMU] {device_name} => roll1={r1}, pitch1={p1}, roll2={r2}, pitch2={p2}, time={timestamp_str}")
+            print(f"[IMU] {device_name} => is_moved={is_moved}, time={timestamp_str}")
 
         else:
-            # Not recognized
             print(f"Unknown device: {device_name}, raw data: {data_str}")
 
     except Exception as e:
         print(f"Error processing data from {device_name}: {e}")
+
 
 # ------------------------ BLE Connection Management ------------------------ #
 
@@ -333,31 +336,41 @@ async def connect_to_device(address, device_name):
 
 last_recorded_timestamp = 0
 
+
 async def synchronized_data_collector():
     global last_recorded_timestamp
     while True:
         with sensor_values_lock:
             ts1 = sensor_values['ESP32_Sensor_1']['timestamp']
             ts2 = sensor_values['ESP32_Sensor_2']['timestamp']
+
+            # Ensure we have new data from both sensors before recording
             if ts1 > last_recorded_timestamp and ts2 > last_recorded_timestamp:
                 record_entry_left = {
                     'timestamp': ts1,
-                    'Left_Heel': sensor_values['ESP32_Sensor_1']['Left_Heel'],
-                    'Left_Middle': sensor_values['ESP32_Sensor_1']['Left_Middle'],
-                    'Left_Top': sensor_values['ESP32_Sensor_1']['Left_Top']
+                    'Left_Region_1': sensor_values['ESP32_Sensor_1']['Left_Region_1'],
+                    'Left_Region_2': sensor_values['ESP32_Sensor_1']['Left_Region_2'],
+                    'Left_Region_3': sensor_values['ESP32_Sensor_1']['Left_Region_3'],
+                    'Left_Region_4': sensor_values['ESP32_Sensor_1']['Left_Region_4']
                 }
+
                 record_entry_right = {
                     'timestamp': ts2,
-                    'Right_Heel': sensor_values['ESP32_Sensor_2']['Right_Heel'],
-                    'Right_Middle': sensor_values['ESP32_Sensor_2']['Right_Middle'],
-                    'Right_Top': sensor_values['ESP32_Sensor_2']['Right_Top']
+                    'Right_Region_1': sensor_values['ESP32_Sensor_2']['Right_Region_1'],
+                    'Right_Region_2': sensor_values['ESP32_Sensor_2']['Right_Region_2'],
+                    'Right_Region_3': sensor_values['ESP32_Sensor_2']['Right_Region_3'],
+                    'Right_Region_4': sensor_values['ESP32_Sensor_2']['Right_Region_4']
                 }
+
                 with recording_lock:
                     if is_recording:
                         current_recording_left.append(record_entry_left)
                         current_recording_right.append(record_entry_right)
+
+                # Update the last recorded timestamp
                 last_recorded_timestamp = max(ts1, ts2)
-        await asyncio.sleep(0.05)
+
+        await asyncio.sleep(0.05)  # Sleep for 50ms before checking again
 
 
 # ------------------------ BLE Client Runner ------------------------ #
@@ -420,12 +433,14 @@ async def get_insole_contours_endpoint():
 async def get_sensor_values():
     with sensor_values_lock:
         flat_values = {
-            'Left_Heel': sensor_values['ESP32_Sensor_1']['Left_Heel'],
-            'Left_Middle': sensor_values['ESP32_Sensor_1']['Left_Middle'],
-            'Left_Top': sensor_values['ESP32_Sensor_1']['Left_Top'],
-            'Right_Heel': sensor_values['ESP32_Sensor_2']['Right_Heel'],
-            'Right_Middle': sensor_values['ESP32_Sensor_2']['Right_Middle'],
-            'Right_Top': sensor_values['ESP32_Sensor_2']['Right_Top']
+            'Left_Region_1': sensor_values['ESP32_Sensor_1']['Left_Region_1'],
+            'Left_Region_2': sensor_values['ESP32_Sensor_1']['Left_Region_2'],
+            'Left_Region_3': sensor_values['ESP32_Sensor_1']['Left_Region_3'],
+            'Left_Region_4': sensor_values['ESP32_Sensor_1']['Left_Region_4'],
+            'Right_Region_1': sensor_values['ESP32_Sensor_2']['Right_Region_1'],
+            'Right_Region_2': sensor_values['ESP32_Sensor_2']['Right_Region_2'],
+            'Right_Region_3': sensor_values['ESP32_Sensor_2']['Right_Region_3'],
+            'Right_Region_4': sensor_values['ESP32_Sensor_2']['Right_Region_4']
         }
         return JSONResponse(content=flat_values)
 
