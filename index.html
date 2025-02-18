@@ -1,544 +1,641 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Insole Sensor Visualization</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-        }
-
-        .navbar {
-            width: 100%;
-            background-color: #243c6b;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 20px;
-            color: white;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            box-sizing: border-box;
-        }
-        .navbar-logo {
-            display: flex;
-            align-items: center;
-        }
-        .navbar-logo img {
-            height: 40px;
-            margin-right: 15px;
-        }
-        .navbar-links {
-            display: flex;
-            gap: 20px;
-        }
-        .navbar-links a {
-            color: white;
-            text-decoration: none;
-            font-size: 16px;
-            transition: color 0.3s;
-        }
-        .navbar-links a:hover {
-            color: #ffc107;
-        }
-
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 15px;
-        }
-
-        #instructions {
-            text-align: center;
-            max-width: 1000px;
-            margin: 0 auto 20px auto;
-            color: #555;
-        }
-
-        .layout-container {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            align-items: flex-start;
-            gap: 20px;
-            max-width: 1400px;
-            margin: 20px auto;
-        }
-
-        /* Left side: replaced the chart with a walking GIF */
-        .left-chart {
-            width: 300px;
-            height: 400px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* Middle insole container */
-        #insoleSvg {
-            width: 600px;
-            height: 600px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            background-color: white;
-        }
-
-        /* Right side: now holds our IMU skeleton canvas */
-        .right-model {
-            width: 300px;
-            height: 400px;
-            background-color: white;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .form-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            max-width: 900px;
-            width: 100%;
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin: 20px auto 0 auto;
-        }
-        .form-row {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        input, select {
-            padding: 8px;
-            font-size: 14px;
-            width: 100%;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        .input-group {
-            flex: 1;
-        }
-        #recordButton {
-            padding: 10px 15px;
-            font-size: 16px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 8px;
-        }
-        #recordButton.stop {
-            background-color: #dc3545;
-        }
-        #recordButton:hover {
-            opacity: 0.9;
-        }
-
-        /* Asymmetry display */
-        #asymmetry-display {
-            text-align:center;
-            font-size:16px;
-            margin-top:20px;
-            margin-bottom:20px;
-        }
-
-        /* Canvas style for the skeleton */
-        #skeletonCanvas {
-            background: #ffffff;
-            /* Enough to fit inside right-model, or you can do 300x400, etc. */
-            width: 300px;
-            height: 400px;
-        }
-
-    </style>
+  <title>Insole Sensor Visualization</title>
+  <!-- CSS Frameworks from CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .navbar {
+      width: 100%;
+      background-color: #243c6b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      color: white;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      box-sizing: border-box;
+    }
+    .navbar-logo {
+      display: flex;
+      align-items: center;
+    }
+    .navbar-logo img {
+      height: 40px;
+      margin-right: 15px;
+    }
+    .navbar-links {
+      display: flex;
+      gap: 20px;
+    }
+    .navbar-links a {
+      color: white;
+      text-decoration: none;
+      font-size: 16px;
+      transition: color 0.3s;
+    }
+    .navbar-links a:hover {
+      color: #ffc107;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    #instructions {
+      text-align: center;
+      max-width: 1000px;
+      margin: 0 auto 20px auto;
+      color: #555;
+    }
+    /* Layout container: left (GIF), center (insole SVG), right (charts) */
+    .layout-container {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+      max-width: 1400px;
+      margin: 20px auto;
+    }
+    /* Left side: walking GIF */
+    .left-chart {
+      width: 300px;
+      height: 400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    /* Middle: Insole SVG */
+    #insoleSvg {
+      width: 600px;
+      height: 600px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background-color: white;
+    }
+    /* Right side: two stacked charts */
+    .right-charts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 300px;
+      height: 400px;
+    }
+    .right-charts-container canvas {
+      background-color: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      flex: 1;
+    }
+    .form-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 900px;
+      width: 100%;
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin: 20px auto 0 auto;
+    }
+    .form-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    input, select {
+      padding: 8px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .input-group {
+      flex: 1;
+    }
+    #recordButton {
+      padding: 10px 15px;
+      font-size: 16px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+    }
+    #recordButton.stop {
+      background-color: #dc3545;
+    }
+    #recordButton:hover {
+      opacity: 0.9;
+    }
+    #asymmetry-display {
+      text-align: center;
+      font-size: 16px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+  </style>
 </head>
 <body>
-    <div class="navbar">
-        <div class="navbar-logo">
-            <img src="/static/logo.jpeg" alt="Logo">
-            <span>Insole Sensor App</span>
-        </div>
-        <div class="navbar-links">
-            <a href="/visualize">View Recorded Data</a>
-            <a href="#"
-               id="exitLink"
-               style="background-color: #dc3545;
-                      color: white;
-                      padding: 8px 12px;
-                      border-radius: 5px;
-                      font-weight: bold;">
-               Exit
-            </a>
-        </div>
+  <!-- Navbar -->
+  <div class="navbar">
+    <div class="navbar-logo">
+      <img src="/static/logo.jpeg" alt="Logo">
+      <span>Insole Sensor App</span>
     </div>
+    <div class="navbar-links">
+      <a href="/visualize">View Recorded Data</a>
+      <a href="#" id="exitLink" style="background-color: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; font-weight: bold;">Exit</a>
+    </div>
+  </div>
 
-    <div class="layout-container">
-        <!-- Left side: walking GIF (normal orientation) -->
-        <div  class="left-chart">
-            <img src="/static/exercise-walk.gif" id="Walk" alt="Walking Right" style="width:300px; height:400px;" />
+  <!-- Layout Container -->
+  <div class="layout-container">
+    <!-- Left: Walking GIF -->
+    <div class="left-chart">
+      <img src="/static/exercise-walk.gif" id="Walk" alt="Walking Right" style="width:300px; height:400px;">
+    </div>
+    <!-- Middle: Insole SVG -->
+    <svg id="insoleSvg"></svg>
+    <!-- Right: Two stacked charts -->
+    <div class="right-charts-container">
+      <canvas id="chartRight" width="300" height="200"></canvas>
+      <canvas id="chartLeft" width="300" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Asymmetry Display -->
+  <div id="asymmetry-display">
+    Asymmetry: <span id="asymmetry-value">Calculating...</span>
+  </div>
+
+  <!-- Form Container -->
+  <div class="form-container">
+    <form id="userForm">
+      <div class="form-row">
+        <div class="input-group">
+          <label for="name">Name:</label>
+          <input type="text" id="name" placeholder="Enter your name" required>
         </div>
-
-        <!-- Middle insole SVG remains -->
-        <svg id="insoleSvg"></svg>
-
-        <!-- Right side: replaced the mirrored GIF with a skeleton canvas -->
-        <div class="right-model">
-            <!-- Our skeleton canvas -->
-            <canvas id="skeletonCanvas" width="300" height="400"></canvas>
+        <div class="input-group">
+          <label for="surname">Surname:</label>
+          <input type="text" id="surname" placeholder="Enter your surname" required>
         </div>
-    </div>
+        <div class="input-group">
+          <label for="height">Height (cm):</label>
+          <input type="number" id="height" placeholder="Enter your height" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="input-group">
+          <label for="weight">Weight (kg):</label>
+          <input type="number" id="weight" placeholder="Enter your weight" required>
+        </div>
+        <div class="input-group">
+          <label for="gender">Gender:</label>
+          <select id="gender" required>
+            <option value="" disabled selected>Select your gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="shoe_size">Shoe Size:</label>
+          <input type="number" id="shoe_size" placeholder="Enter your shoe size" required>
+        </div>
+      </div>
+      <button id="recordButton">Start Recording</button>
+    </form>
+  </div>
 
-    <!-- Asymmetry display below insoles and above the form -->
-    <div id="asymmetry-display">
-        Asymmetry: <span id="asymmetry-value">Calculating...</span>
-    </div>
+  <!-- JavaScript Libraries from CDN -->
+<!--  <script src="https://d3js.org/d3.v6.min.js"></script>-->
+<!--  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>-->
+<!--  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>-->
+  <script src="/static/d3.v6.min.js"></script>
+<!--  <script src="/static/chart.min.js"></script>-->
+<!--  <script src="/static/chart.js"></script>-->
+<!--  <script src="/static/chartjs-plugin-zoom.min.js"></script>-->
+  <script>
+    // Gif looper logic via WebSocket (IMU data)
+    const gifLooper = document.getElementById("Walk");
+    var imuSocket = new WebSocket("ws://127.0.0.1:8000/ws");
+    imuSocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      // Example: Reset the GIF if left_ax1 equals "0"
+      if (data.left_ax1 == "0") {
+        gifLooper.src = "/static/exercise-walk.gif";
+      }
+    };
+  </script>
 
-    <div class="form-container">
-        <form id="userForm">
-            <div class="form-row">
-                <div class="input-group">
-                    <label for="name">Name:</label>
-                    <input type="text" id="name" placeholder="Enter your name" required>
-                </div>
-                <div class="input-group">
-                    <label for="surname">Surname:</label>
-                    <input type="text" id="surname" placeholder="Enter your surname" required>
-                </div>
-                <div class="input-group">
-                    <label for="height">Height (cm):</label>
-                    <input type="number" id="height" placeholder="Enter your height" required>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="input-group">
-                    <label for="weight">Weight (kg):</label>
-                    <input type="number" id="weight" placeholder="Enter your weight" required>
-                </div>
-                <div class="input-group">
-                    <label for="gender">Gender:</label>
-                    <select id="gender" required>
-                        <option value="" disabled selected>Select your gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label for="shoe_size">Shoe Size:</label>
-                    <input type="number" id="shoe_size" placeholder="Enter your shoe size" required>
-                </div>
-            </div>
-            <button id="recordButton">Start Recording</button>
-        </form>
-    </div>
+  <script>
+    /****************************************************/
+    /*            FOOT SENSOR + INSOLE CODE             */
+    /****************************************************/
+    var maxDataPoints = 50;
 
-    <!-- Scripts -->
-    <script src="/static/d3.v6.min.js"></script>
-    <script>
-        //gif looper logic
+    // Insole contour data
+    var insoleContours;
 
-        const gifLooper = document.getElementById("Walk");
-        var imuSocket = new WebSocket("ws://127.0.0.1:8000/ws");
+    // Sensor values for each region
+    var sensorValuesLeft = {
+      'Left_Heel': 0,
+      'Left_Middle': 0,
+      'Left_Top': 0
+    };
+    var sensorValuesRight = {
+      'Right_Heel': 0,
+      'Right_Middle': 0,
+      'Right_Top': 0
+    };
 
-        imuSocket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+    // Asymmetry calculation variables
+    var iterationCount = 0;
+    var maxIterationsForAsymmetry = 300;
+    var leftLoads = [];
+    var rightLoads = [];
 
-            //gif loop
-            if (data.left_ax1 == "0") {
-                gifLooper.src = "/static/exercise-walk.gif";
-            }
-        };
-    </script>
-    <script>
-        /****************************************************/
-        /*            FOOT SENSOR + INSOLE CODE             */
-        /****************************************************/
-        var maxDataPoints = 50;
+    // Exit link logic
+    document.getElementById("exitLink").addEventListener("click", function(event) {
+      event.preventDefault();
+      if (confirm("Are you sure you want to exit?")) {
+        fetch('/exit_app', { method: 'POST' })
+          .then(response => response.json())
+          .then(data => {
+            console.log("Exiting app...", data);
+          })
+          .catch(error => {
+            console.error("Error exiting app:", error);
+          });
+      }
+    });
 
-        // Insole contour data
-        var insoleContours;
-
-        // Sensor values
-        var sensorValuesLeft = {
-            'Left_Heel': 0,
-            'Left_Middle': 0,
-            'Left_Top': 0
-        };
-        var sensorValuesRight = {
-            'Right_Heel': 0,
-            'Right_Middle': 0,
-            'Right_Top': 0
-        };
-
-        // Asymmetry variables
-        var iterationCount = 0;
-        var maxIterationsForAsymmetry = 300;
-        var leftLoads = [];
-        var rightLoads = [];
-
-        // Navbar exit link
-        document.getElementById("exitLink").addEventListener("click", function(event) {
-            event.preventDefault();
-            if (confirm("Are you sure you want to exit?")) {
-                fetch('/exit_app', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    console.log("Exiting app...", data);
-                })
-                .catch(error => {
-                    console.error("Error exiting app:", error);
-                });
-            }
+    // Fetch insole contour data
+    function fetchInsoleContours() {
+      fetch('/get_insole_contours')
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            console.error('Error:', data.error);
+            return;
+          }
+          insoleContours = data;
+          drawInsoleContours();
+        })
+        .catch(error => {
+          console.error('Error fetching insole contours:', error);
         });
+    }
 
-        // Fetch insole contour data from server
-        function fetchInsoleContours() {
-            fetch('/get_insole_contours')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Error:', data.error);
-                    return;
-                }
-                insoleContours = data;
-                drawInsoleContours();
-            })
-            .catch(error => {
-                console.error('Error fetching insole contours:', error);
-            });
+    // Draw insole contours using D3
+    function drawInsoleContours() {
+      var svg = d3.select('#insoleSvg');
+      svg.selectAll("*").remove();
+
+      var allPoints = [];
+      for (var side in insoleContours) {
+        for (var partName in insoleContours[side]) {
+          var points = insoleContours[side][partName];
+          allPoints = allPoints.concat(points);
         }
+      }
 
-        // Draw the insole contours
-        function drawInsoleContours() {
-            var svg = d3.select('#insoleSvg');
-            svg.selectAll("*").remove();
+      if (allPoints.length === 0) {
+        console.error('No insole contours found.');
+        return;
+      }
 
-            var allPoints = [];
-            for (var side in insoleContours) {
-                for (var partName in insoleContours[side]) {
-                    var points = insoleContours[side][partName];
-                    allPoints = allPoints.concat(points);
-                }
-            }
+      var xExtent = d3.extent(allPoints, function(d) { return d[0]; });
+      var yExtent = d3.extent(allPoints, function(d) { return d[1]; });
 
-            if (allPoints.length === 0) {
-                console.error('No insole contours found.');
-                return;
-            }
+      var margin = 90;
+      var width = 600;
+      var height = 600;
+      var xRange = [margin, width - margin];
+      var yRange = [margin, height - margin];
 
-            var xExtent = d3.extent(allPoints, function(d) { return d[0]; });
-            var yExtent = d3.extent(allPoints, function(d) { return d[1]; });
+      var xScale = d3.scaleLinear()
+                      .domain(xExtent)
+                      .range(xRange);
+      var yScale = d3.scaleLinear()
+                      .domain(yExtent)
+                      .range(yRange);
 
-            var margin = 90;
-            var width = 600;
-            var height = 600;
-            var xRange = [margin, width - margin];
-            var yRange = [margin, height - margin];
+      for (var side in insoleContours) {
+        for (var partName in insoleContours[side]) {
+          var points = insoleContours[side][partName];
+          if (points.length === 0) continue;
+          var scaledPoints = points.map(function(d) {
+            return [xScale(d[0]), yScale(d[1])];
+          });
+          var pathData = d3.line()(scaledPoints) + 'Z';
 
-            var xScale = d3.scaleLinear()
-                .domain(xExtent)
-                .range(xRange);
+          svg.append('path')
+             .attr('id', partName)
+             .attr('d', pathData)
+             .attr('fill', 'white')
+             .attr('stroke', 'black')
+             .attr('stroke-width', 1);
+        }
+      }
+    }
 
-            var yScale = d3.scaleLinear()
-                .domain(yExtent)
-                .range(yRange);
+    // Update insole colors based on sensor values
+    function updateInsoleColors() {
+        var colorScale = d3.scaleLinear()
+            .domain([0, 4095])
+            .range(['white', 'red']);
 
-            for (var side in insoleContours) {
-                for (var partName in insoleContours[side]) {
-                    var points = insoleContours[side][partName];
-                    if (points.length === 0) continue;
-                    var scaledPoints = points.map(function(d) {
-                        return [xScale(d[0]), yScale(d[1])];
-                    });
-                    var pathData = d3.line()(scaledPoints) + 'Z';
-
-                    svg.append('path')
-                        .attr('id', partName)
-                        .attr('d', pathData)
-                        .attr('fill', 'white')
-                        .attr('stroke', 'black')
-                        .attr('stroke-width', 1);
-                }
+        for (var key in sensorValuesLeft) {
+            var value = sensorValuesLeft[key];
+            var element = d3.select('#' + key);
+            if (!element.empty()) {
+                element.attr('fill', colorScale(value));
             }
         }
-
-        // Update colors on the insole based on sensor values
-        function updateInsoleColors() {
-            var colorScale = d3.scaleLinear()
-                .domain([0, 4095])
-                .range(['white', 'red']);
-
-            for (var key in sensorValuesLeft) {
-                var value = sensorValuesLeft[key];
-                var color = colorScale(value);
-                var element = d3.select('#' + key);
-                if (!element.empty()) {
-                    element.attr('fill', color);
-                }
-            }
-            for (var key in sensorValuesRight) {
-                var value = sensorValuesRight[key];
-                var color = colorScale(value);
-                var element = d3.select('#' + key);
-                if (!element.empty()) {
-                    element.attr('fill', color);
-                }
+        for (var key in sensorValuesRight) {
+            var value = sensorValuesRight[key];
+            var element = d3.select('#' + key);
+            if (!element.empty()) {
+                element.attr('fill', colorScale(value));
             }
         }
 
-        // Compute asymmetry
-        function computeAsymmetry() {
-            if (leftLoads.length < maxIterationsForAsymmetry || rightLoads.length < maxIterationsForAsymmetry) {
-                return;
+        // Update Charts Simultaneously
+        //updateCharts(sensorValuesLeft, sensorValuesRight);
+    }
+
+
+    // Compute asymmetry (optional calculation)
+    function computeAsymmetry() {
+      if (leftLoads.length < maxIterationsForAsymmetry || rightLoads.length < maxIterationsForAsymmetry) {
+        return;
+      }
+      var sumLeft = leftLoads.reduce((a, b) => a + b, 0);
+      var sumRight = rightLoads.reduce((a, b) => a + b, 0);
+      var avgLeft = sumLeft / maxIterationsForAsymmetry;
+      var avgRight = sumRight / maxIterationsForAsymmetry;
+      var asymmetry = 0;
+      if ((avgLeft + avgRight) !== 0) {
+        asymmetry = (Math.abs(avgLeft - avgRight) / ((avgLeft + avgRight) / 2)) * 100;
+      }
+      document.getElementById('asymmetry-value').textContent = asymmetry.toFixed(2) + "%";
+      leftLoads = [];
+      rightLoads = [];
+      iterationCount = 0;
+    }
+  </script>
+
+  <script>
+    /****************************************************/
+    /*             CHART.JS CODE FOR SUBPLOTS           */
+    /****************************************************/
+    // Create two charts—each with three datasets for the three regions
+    var leftChartData = {
+      labels: [],
+      datasets: [
+        { label: 'Left Heel', data: [], borderColor: 'blue', fill: false },
+        { label: 'Left Middle', data: [], borderColor: 'green', fill: false },
+        { label: 'Left Top', data: [], borderColor: 'purple', fill: false }
+      ]
+    };
+
+    var rightChartData = {
+      labels: [],
+      datasets: [
+        { label: 'Right Heel', data: [], borderColor: 'red', fill: false },
+        { label: 'Right Middle', data: [], borderColor: 'orange', fill: false },
+        { label: 'Right Top', data: [], borderColor: 'magenta', fill: false }
+      ]
+    };
+
+    var leftChartCtx = document.getElementById('chartLeft').getContext('2d');
+    var rightChartCtx = document.getElementById('chartRight').getContext('2d');
+
+    var leftChart = new Chart(leftChartCtx, {
+      type: 'line',
+      data: leftChartData,
+      options: {
+        responsive: false,
+        scales: {
+          x: { display: true },
+          y: {
+            display: true,
+            beginAtZero: true,
+            min: 0
+          }
+        },
+        plugins: {
+          zoom: {
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              mode: 'x'
             }
+          }
+        }
+      }
+    });
 
-            var sumLeft = 0;
-            var sumRight = 0;
-            for (var i = 0; i < maxIterationsForAsymmetry; i++) {
-                sumLeft += leftLoads[i];
-                sumRight += rightLoads[i];
+    var rightChart = new Chart(rightChartCtx, {
+      type: 'line',
+      data: rightChartData,
+      options: {
+        responsive: false,
+        scales: {
+          x: { display: true },
+          y: {
+            display: true,
+            beginAtZero: true,
+            min: 0
+          }
+        },
+        plugins: {
+          zoom: {
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              mode: 'x'
             }
+          }
 
-            var avgLeft = sumLeft / maxIterationsForAsymmetry;
-            var avgRight = sumRight / maxIterationsForAsymmetry;
 
-            var asymmetry = 0;
-            if ((avgLeft + avgRight) !== 0) {
-                asymmetry = (Math.abs(avgLeft - avgRight) / ((avgLeft + avgRight) / 2)) * 100;
-            }
+        }
+      }
+    });
 
-            document.getElementById('asymmetry-value').textContent = asymmetry.toFixed(2) + "%";
+    // Update both charts with the individual sensor values
+    function updateCharts(leftSensors, rightSensors) {
+        var currentTime = new Date().toLocaleTimeString();
 
-            leftLoads = [];
-            rightLoads = [];
-            iterationCount = 0;
+        // Clamp values to be positive
+        var leftHeel   = Math.max(0, leftSensors['Left_Heel']);
+        var leftMiddle = Math.max(0, leftSensors['Left_Middle']);
+        var leftTop    = Math.max(0, leftSensors['Left_Top']);
+
+        var rightHeel   = Math.max(0, rightSensors['Right_Heel']);
+        var rightMiddle = Math.max(0, rightSensors['Right_Middle']);
+        var rightTop    = Math.max(0, rightSensors['Right_Top']);
+
+        // Update labels
+        leftChartData.labels.push(currentTime);
+        rightChartData.labels.push(currentTime);
+
+        // Push new data for left insole
+        leftChartData.datasets[0].data.push(leftHeel);
+        leftChartData.datasets[1].data.push(leftMiddle);
+        leftChartData.datasets[2].data.push(leftTop);
+
+        // Push new data for right insole
+        rightChartData.datasets[0].data.push(rightHeel);
+        rightChartData.datasets[1].data.push(rightMiddle);
+        rightChartData.datasets[2].data.push(rightTop);
+
+        // Ensure the dataset size doesn't exceed maxDataPoints
+        if (leftChartData.labels.length > maxDataPoints) {
+            leftChartData.labels.shift();
+            leftChartData.datasets.forEach(dataset => dataset.data.shift());
+        }
+        if (rightChartData.labels.length > maxDataPoints) {
+            rightChartData.labels.shift();
+            rightChartData.datasets.forEach(dataset => dataset.data.shift());
         }
 
-        // Periodically fetch sensor values (foot sensors)
-        function fetchSensorValues() {
-            fetch('/get_sensor_values')
-            .then(response => response.json())
-            .then(data => {
-                // Update sensor values
-                sensorValuesLeft['Left_Heel']   = data['Left_Heel'];
-                sensorValuesLeft['Left_Middle'] = data['Left_Middle'];
-                sensorValuesLeft['Left_Top']    = data['Left_Top'];
+        // Update the charts
+        leftChart.update();
+        rightChart.update();
+    }
 
-                sensorValuesRight['Right_Heel']   = data['Right_Heel'];
-                sensorValuesRight['Right_Middle'] = data['Right_Middle'];
-                sensorValuesRight['Right_Top']    = data['Right_Top'];
+  </script>
 
-                // Update insole visualization
-                updateInsoleColors();
+  <script>
+    /****************************************************/
+    /*       PERIODIC FETCH OF SENSOR VALUES            */
+    /****************************************************/
+    function fetchSensorValues() {
+      fetch('/get_sensor_values')
+        .then(response => response.json())
+        .then(data => {
+          console.log("Fetched sensor values:", data); // Debug log
+          // Update sensor values for left insole
+          sensorValuesLeft['Left_Heel']   = Number(data['ESP32_Sensor_1']['sensor1'])   || 0;
+          sensorValuesLeft['Left_Middle'] = Number(data['ESP32_Sensor_1']['sensor2']) || 0;
+          sensorValuesLeft['Left_Top']    = Number(data['ESP32_Sensor_1']['sensor3'])    || 0;
 
-                // For asymmetry
-                var leftLoad = sensorValuesLeft['Left_Heel']
-                             + sensorValuesLeft['Left_Middle']
-                             + sensorValuesLeft['Left_Top'];
-                var rightLoad = sensorValuesRight['Right_Heel']
-                              + sensorValuesRight['Right_Middle']
-                              + sensorValuesRight['Right_Top'];
+          // Update sensor values for right insole
+          sensorValuesRight['Right_Heel']   = Number(data['ESP32_Sensor_2']['sensor1'])   || 0;
+          sensorValuesRight['Right_Middle'] = Number(data['ESP32_Sensor_2']['sensor2']) || 0;
+          sensorValuesRight['Right_Top']    = Number(data['ESP32_Sensor_2']['sensor3'])    || 0;
 
-                leftLoads.push(leftLoad);
-                rightLoads.push(rightLoad);
-                iterationCount++;
+          // Update the insole SVG colors
+          updateInsoleColors();
 
-                if (iterationCount >= maxIterationsForAsymmetry) {
-                    computeAsymmetry();
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching sensor values:', error);
-            });
-        }
+          // For asymmetry calculation:
+          var leftLoad = sensorValuesLeft['Left_Heel'] +
+                         sensorValuesLeft['Left_Middle'] +
+                         sensorValuesLeft['Left_Top'];
+          var rightLoad = sensorValuesRight['Right_Heel'] +
+                          sensorValuesRight['Right_Middle'] +
+                          sensorValuesRight['Right_Top'];
 
-        // Initiate foot sensor fetch loops
-        fetchInsoleContours();
-        setInterval(fetchSensorValues, 100);
+          // Update the charts with the individual sensor values
+          updateCharts(sensorValuesLeft, sensorValuesRight);
 
-        /****************************************************/
-        /*               RECORDING BUTTON LOGIC             */
-        /****************************************************/
-        var isRecording = false;
-        var recordButton = document.getElementById("recordButton");
+          leftLoads.push(leftLoad);
+          rightLoads.push(rightLoad);
+          iterationCount++;
+          if (iterationCount >= maxIterationsForAsymmetry) {
+            computeAsymmetry();
+          }
 
-        recordButton.addEventListener("click", function(event) {
-            event.preventDefault();
-            if (!isRecording) {
-                var name = document.getElementById("name").value.trim();
-                var surname = document.getElementById("surname").value.trim();
-                var height = document.getElementById("height").value;
-                var weight = document.getElementById("weight").value;
-                var gender = document.getElementById("gender").value;
-                var shoe_size = document.getElementById("shoe_size").value;
 
-                if (name && surname && height && weight && gender && shoe_size) {
-                    startRecording(name, surname, height, weight, gender, shoe_size);
-                    isRecording = true;
-                    recordButton.textContent = "Stop Recording";
-                    recordButton.classList.add("stop");
-                    document.querySelectorAll('#userForm input, #userForm select').forEach(elem => elem.disabled = true);
-                } else {
-                    alert("Please fill in all the fields.");
-                }
-            } else {
-                stopRecording();
-                isRecording = false;
-                recordButton.textContent = "Start Recording";
-                recordButton.classList.remove("stop");
-                document.querySelectorAll('#userForm input, #userForm select').forEach(elem => elem.disabled = false);
-            }
+        })
+        .catch(error => {
+          console.error('Error fetching sensor values:', error);
         });
+    }
 
-        function startRecording(name, surname, height, weight, gender, shoe_size) {
-            fetch('/start_recording', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: name,
-                    surname: surname,
-                    height: height,
-                    weight: weight,
-                    gender: gender,
-                    shoe_size: shoe_size
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log("Recording started:", data);
-            })
-            .catch(error => {
-                console.error("Error starting recording:", error);
-            });
+    // Start fetching insole contours and sensor updates
+    fetchInsoleContours();
+    setInterval(fetchSensorValues, 100);
+  </script>
+
+  <script>
+    /****************************************************/
+    /*             RECORDING BUTTON LOGIC              */
+    /****************************************************/
+    var isRecording = false;
+    var recordButton = document.getElementById("recordButton");
+
+    recordButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      if (!isRecording) {
+        var name = document.getElementById("name").value.trim();
+        var surname = document.getElementById("surname").value.trim();
+        var height = document.getElementById("height").value;
+        var weight = document.getElementById("weight").value;
+        var gender = document.getElementById("gender").value;
+        var shoe_size = document.getElementById("shoe_size").value;
+
+        if (name && surname && height && weight && gender && shoe_size) {
+          startRecording(name, surname, height, weight, gender, shoe_size);
+          isRecording = true;
+          recordButton.textContent = "Stop Recording";
+          recordButton.classList.add("stop");
+          document.querySelectorAll('#userForm input, #userForm select').forEach(elem => elem.disabled = true);
+        } else {
+          alert("Please fill in all the fields.");
         }
+      } else {
+        stopRecording();
+        isRecording = false;
+        recordButton.textContent = "Start Recording";
+        recordButton.classList.remove("stop");
+        document.querySelectorAll('#userForm input, #userForm select').forEach(elem => elem.disabled = false);
+      }
+    });
 
-        function stopRecording() {
-            fetch('/stop_recording', {
-                method: 'POST'
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log("Recording stopped:", data);
-                alert("Recording stopped. Data saved to CSV.");
-            })
-            .catch(error => {
-                console.error("Error stopping recording:", error);
-            });
-        }
+    function startRecording(name, surname, height, weight, gender, shoe_size) {
+      fetch('/start_recording', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, surname, height, weight, gender, shoe_size })
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log("Recording started:", data);
+      })
+      .catch(error => {
+        console.error("Error starting recording:", error);
+      });
+    }
 
-    </script>
+    function stopRecording() {
+      fetch('/stop_recording', { method: 'POST' })
+      .then(response => response.json())
+      .then(data => {
+        console.log("Recording stopped:", data);
+        alert("Recording stopped. Data saved to CSV.");
+      })
+      .catch(error => {
+        console.error("Error stopping recording:", error);
+      });
+    }
+  </script>
 </body>
 </html>
