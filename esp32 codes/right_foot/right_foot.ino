@@ -11,12 +11,15 @@ const int sensorPin3 = 36;
 const int sensorPin4 = 39; // 4th sensor
 
 // Define threshold value
-const int threshold = 3000; // Adjust as needed
+const int threshold = 3000;
 
 // We want 300 readings in the moving window
 #define MAX_READINGS 300
 
-// BLE UUIDs
+// Define a fixed JSON buffer size
+#define JSON_BUFFER_SIZE 200  // Adjust based on required data length
+
+// BLE UUIDs (Unique for the second device)
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914c"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a9"
 
@@ -36,144 +39,37 @@ unsigned long interval3 = 0;
 unsigned long interval4 = 0;
 
 // -----------------------------
-// Ring Buffer Variables (Sensor 1)
+// Ring Buffer Variables
 // -----------------------------
-static int sensor1Buffer[MAX_READINGS];
-static int* head1 = sensor1Buffer;  // Points to the oldest reading
-static int* tail1 = sensor1Buffer;  // Points to the next free location
-static unsigned long sum1 = 0;
-static int count1 = 0; // how many readings so far
+static int sensor1Buffer[MAX_READINGS], sensor2Buffer[MAX_READINGS];
+static int sensor3Buffer[MAX_READINGS], sensor4Buffer[MAX_READINGS];
+
+static int* head1 = sensor1Buffer, * tail1 = sensor1Buffer;
+static int* head2 = sensor2Buffer, * tail2 = sensor2Buffer;
+static int* head3 = sensor3Buffer, * tail3 = sensor3Buffer;
+static int* head4 = sensor4Buffer, * tail4 = sensor4Buffer;
+
+static unsigned long sum1 = 0, sum2 = 0, sum3 = 0, sum4 = 0;
+static int count1 = 0, count2 = 0, count3 = 0, count4 = 0;
 
 // -----------------------------
-// Ring Buffer Variables (Sensor 2)
+// Function to update ring buffer
 // -----------------------------
-static int sensor2Buffer[MAX_READINGS];
-static int* head2 = sensor2Buffer;
-static int* tail2 = sensor2Buffer;
-static unsigned long sum2 = 0;
-static int count2 = 0;
-
-// -----------------------------
-// Ring Buffer Variables (Sensor 3)
-// -----------------------------
-static int sensor3Buffer[MAX_READINGS];
-static int* head3 = sensor3Buffer;
-static int* tail3 = sensor3Buffer;
-static unsigned long sum3 = 0;
-static int count3 = 0;
-
-// -----------------------------
-// Ring Buffer Variables (Sensor 4)
-// -----------------------------
-static int sensor4Buffer[MAX_READINGS];
-static int* head4 = sensor4Buffer;
-static int* tail4 = sensor4Buffer;
-static unsigned long sum4 = 0;
-static int count4 = 0;
-
-// -----------------------------
-// Helper Functions for Each Sensor
-// -----------------------------
-void pushReadingSensor1(int value) {
-  if (count1 < MAX_READINGS) {
-    // Buffer not yet full
-    *tail1 = value;
-    sum1 += value;
-    tail1++;
-    count1++;
-    // Wrap tail if needed
-    if (tail1 >= sensor1Buffer + MAX_READINGS) {
-      tail1 = sensor1Buffer; // wrap around to start
-    }
+void pushReading(int value, int* buffer, int*& head, int*& tail, unsigned long& sum, int& count) {
+  if (count < MAX_READINGS) {
+    *tail = value;
+    sum += value;
+    tail++;
+    count++;
+    if (tail >= buffer + MAX_READINGS) tail = buffer;  // Wrap around
   } else {
-    // Buffer is full (count1 == 300)
-    // Remove the oldest reading from sum
-    sum1 -= *head1;
-    // Overwrite oldest reading with new value
-    *head1 = value;
-    // Add new value to sum
-    sum1 += value;
-    // Advance head and tail
-    head1++;
-    tail1++;
-    if (head1 >= sensor1Buffer + MAX_READINGS) {
-      head1 = sensor1Buffer; // wrap around
-    }
-    if (tail1 >= sensor1Buffer + MAX_READINGS) {
-      tail1 = sensor1Buffer; // wrap around
-    }
-  }
-}
-
-void pushReadingSensor2(int value) {
-  if (count2 < MAX_READINGS) {
-    *tail2 = value;
-    sum2 += value;
-    tail2++;
-    count2++;
-    if (tail2 >= sensor2Buffer + MAX_READINGS) {
-      tail2 = sensor2Buffer;
-    }
-  } else {
-    sum2 -= *head2;
-    *head2 = value;
-    sum2 += value;
-    head2++;
-    tail2++;
-    if (head2 >= sensor2Buffer + MAX_READINGS) {
-      head2 = sensor2Buffer;
-    }
-    if (tail2 >= sensor2Buffer + MAX_READINGS) {
-      tail2 = sensor2Buffer;
-    }
-  }
-}
-
-void pushReadingSensor3(int value) {
-  if (count3 < MAX_READINGS) {
-    *tail3 = value;
-    sum3 += value;
-    tail3++;
-    count3++;
-    if (tail3 >= sensor3Buffer + MAX_READINGS) {
-      tail3 = sensor3Buffer;
-    }
-  } else {
-    sum3 -= *head3;
-    *head3 = value;
-    sum3 += value;
-    head3++;
-    tail3++;
-    if (head3 >= sensor3Buffer + MAX_READINGS) {
-      head3 = sensor3Buffer;
-    }
-    if (tail3 >= sensor3Buffer + MAX_READINGS) {
-      tail3 = sensor3Buffer;
-    }
-  }
-}
-
-void pushReadingSensor4(int value) {
-  if (count4 < MAX_READINGS) {
-    *tail4 = value;
-    sum4 += value;
-    tail4++;
-    count4++;
-    if (tail4 >= sensor4Buffer + MAX_READINGS) {
-      tail4 = sensor4Buffer;
-    }
-  } else {
-    sum4 -= *head4;
-    *head4 = value;
-    sum4 += value;
-    head4++;
-    tail4++;
-    if (head4 >= sensor4Buffer + MAX_READINGS) {
-      head4 = sensor4Buffer;
-    }
-    if (tail4 >= sensor4Buffer + MAX_READINGS) {
-      tail4 = sensor4Buffer;
-    }
+    sum -= *head;
+    *head = value;
+    sum += value;
+    head++;
+    tail++;
+    if (head >= buffer + MAX_READINGS) head = buffer;  // Wrap around
+    if (tail >= buffer + MAX_READINGS) tail = buffer;
   }
 }
 
@@ -189,30 +85,23 @@ void setup() {
   // Initialize BLE
   BLEDevice::init("ESP32_Sensor_2");
   BLEServer* pServer = BLEDevice::createServer();
-
-  // Create the BLE Service
   BLEService* pService = pServer->createService(SERVICE_UUID);
-
-  // Create a BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
                       CHARACTERISTIC_UUID,
                       BLECharacteristic::PROPERTY_READ |
                       BLECharacteristic::PROPERTY_NOTIFY
                     );
-
-  // Add CCCD Descriptor to enable notifications
   pCharacteristic->addDescriptor(new BLE2902());
-
-  // Start the service
   pService->start();
 
   // Start advertising
   BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // Helps with iOS devices
+  pAdvertising->setMinPreferred(0x06);
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
+
   Serial.println("ESP32_Sensor_2 is now advertising...");
 }
 
@@ -225,88 +114,84 @@ void loop() {
   int sensorValue3 = analogRead(sensorPin3);
   int sensorValue4 = analogRead(sensorPin4);
 
-  // ---------------------------------------------------
-  // (A) Update intervals based on threshold triggers
-  // ---------------------------------------------------
+  // Update intervals based on threshold triggers
   if (sensorValue1 > threshold) {
     interval1 = (lastTriggerTime1 == 0) ? 0 : (currentTime - lastTriggerTime1);
     lastTriggerTime1 = currentTime;
   }
-
   if (sensorValue2 > threshold) {
     interval2 = (lastTriggerTime2 == 0) ? 0 : (currentTime - lastTriggerTime2);
     lastTriggerTime2 = currentTime;
   }
-
   if (sensorValue3 > threshold) {
     interval3 = (lastTriggerTime3 == 0) ? 0 : (currentTime - lastTriggerTime3);
     lastTriggerTime3 = currentTime;
   }
-
   if (sensorValue4 > threshold) {
     interval4 = (lastTriggerTime4 == 0) ? 0 : (currentTime - lastTriggerTime4);
     lastTriggerTime4 = currentTime;
   }
 
-  // ---------------------------------------------------
-  // (B) Push new readings into the ring buffers
-  // ---------------------------------------------------
-  pushReadingSensor1(sensorValue1);
-  pushReadingSensor2(sensorValue2);
-  pushReadingSensor3(sensorValue3);
-  pushReadingSensor4(sensorValue4);
+//  // Push new readings into buffers
+//  pushReading(sensorValue1, sensor1Buffer, head1, tail1, sum1, count1);
+//  pushReading(sensorValue2, sensor2Buffer, head2, tail2, sum2, count2);
+//  pushReading(sensorValue3, sensor3Buffer, head3, tail3, sum3, count3);
+//  pushReading(sensorValue4, sensor4Buffer, head4, tail4, sum4, count4);
+//
+//  // Compute moving averages
+//  float avg1 = (count1 < MAX_READINGS) ? (sum1 / (float)count1) : (sum1 / (float)MAX_READINGS);
+//  float avg2 = (count2 < MAX_READINGS) ? (sum2 / (float)count2) : (sum2 / (float)MAX_READINGS);
+//  float avg3 = (count3 < MAX_READINGS) ? (sum3 / (float)count3) : (sum3 / (float)MAX_READINGS);
+//  float avg4 = (count4 < MAX_READINGS) ? (sum4 / (float)count4) : (sum4 / (float)MAX_READINGS);
 
-  // ---------------------------------------------------
-  // (C) Compute averages
-  //   - If we haven't reached 300 reads yet for a sensor,
-  //     average = sum / count.
-  //   - Once we have 300, average = sum / 300.
-  // ---------------------------------------------------
-  float avg1 = (count1 < MAX_READINGS) 
-                ? (sum1 / (float)count1) 
-                : (sum1 / (float)MAX_READINGS);
+//  // Create a fixed-size JSON buffer
+//  char dataString[JSON_BUFFER_SIZE];
+//  snprintf(dataString, JSON_BUFFER_SIZE, 
+//           "{"
+//           "\"sensor1\":%d,"
+//           "\"sensor2\":%d,"
+//           "\"sensor3\":%d,"
+//           "\"sensor4\":%d,"
+//           "\"interval1_ms\":%lu,"
+//           "\"interval2_ms\":%lu,"
+//           "\"interval3_ms\":%lu,"
+//           "\"interval4_ms\":%lu,"
+//           "\"avg1\":%.2f,"
+//           "\"avg2\":%.2f,"
+//           "\"avg3\":%.2f,"
+//           "\"avg4\":%.2f"
+//           "}", 
+//           sensorValue1, sensorValue2, sensorValue3, sensorValue4,
+//           interval1, interval2, interval3, interval4,
+//           avg1, avg2, avg3, avg4);
 
-  float avg2 = (count2 < MAX_READINGS) 
-                ? (sum2 / (float)count2) 
-                : (sum2 / (float)MAX_READINGS);
+// Create a fixed-size JSON buffer
+  char dataString[JSON_BUFFER_SIZE];
+  snprintf(dataString, JSON_BUFFER_SIZE, 
+           "{"
+           "\"sensor1\":%d,"
+           "\"sensor2\":%d,"
+           "\"sensor3\":%d,"
+           "\"sensor4\":%d,"
+           "\"interval1_ms\":%lu,"
+           "\"interval2_ms\":%lu,"
+           "\"interval3_ms\":%lu,"
+           "\"interval4_ms\":%lu"
+           "}", 
+           sensorValue1, sensorValue2, sensorValue3, sensorValue4,
+           interval1, interval2, interval3, interval4);
 
-  float avg3 = (count3 < MAX_READINGS) 
-                ? (sum3 / (float)count3) 
-                : (sum3 / (float)MAX_READINGS);
+  // Ensure buffer size is always fixed
+  dataString[JSON_BUFFER_SIZE - 1] = '\0'; // Null-terminate
 
-  float avg4 = (count4 < MAX_READINGS) 
-                ? (sum4 / (float)count4) 
-                : (sum4 / (float)MAX_READINGS);
-
-  // ---------------------------------------------------
-  // (D) Create JSON string for BLE
-  // ---------------------------------------------------
-  String dataString = "{";
-  dataString += "\"sensor1\":" + String(sensorValue1) + ",";
-  dataString += "\"sensor2\":" + String(sensorValue2) + ",";
-  dataString += "\"sensor3\":" + String(sensorValue3) + ",";
-  dataString += "\"sensor4\":" + String(sensorValue4) + ",";
-
-  dataString += "\"interval1_ms\":" + String(interval1) + ",";
-  dataString += "\"interval2_ms\":" + String(interval2) + ",";
-  dataString += "\"interval3_ms\":" + String(interval3) + ",";
-  dataString += "\"interval4_ms\":" + String(interval4) + ",";
-
-  dataString += "\"avg1\":" + String(avg1, 2) + ",";
-  dataString += "\"avg2\":" + String(avg2, 2) + ",";
-  dataString += "\"avg3\":" + String(avg3, 2) + ",";
-  dataString += "\"avg4\":" + String(avg4, 2);
-  dataString += "}";
-
-  // ---------------------------------------------------
-  // (E) Send data via BLE
-  // ---------------------------------------------------
-  pCharacteristic->setValue(dataString.c_str());
+  // Send data via BLE
+  pCharacteristic->setValue(dataString);
   pCharacteristic->notify();
 
   // Debug output
-  Serial.println("Device 2: " + dataString);
+  Serial.println("Device 2: ");
+  Serial.println(dataString);
 
   // Delay between readings
-  delay(10); // Adjust as needed
+  delay(10);
 }
