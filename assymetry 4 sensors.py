@@ -27,7 +27,7 @@ def calculate_asymmetry(file1, file2):
 
 if __name__ == "__main__":
     # Specify file paths (update with correct file paths before running)
-    file1_path = "recordings/tagir_13_02/tagiryerzh_S36_H142_W36_M_Dev1.csv"
-    file2_path = "recordings/tagir_13_02/tagiryerzh_S36_H142_W36_M_Dev2.csv"
+    file1_path = "recordings/male with autistic desorder/patient1pat1_26_02_S36_H165_W56_M_Dev1.csv"
+    file2_path = "recordings/male with autistic desorder/patient1pat1_26_02_S36_H165_W56_M_Dev2.csv"
 
     calculate_asymmetry(file1_path, file2_path)

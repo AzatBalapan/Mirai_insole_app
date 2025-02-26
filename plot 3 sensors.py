@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import SpanSelector
 
 # Load sensor data
-file_path = "recordings/tagir_13_02_3sensors/tagiryerzhS36H127W36M_Combined.csv"
+file_path = "recordings/male with autistic desorder/PA1PA1S35H150W40M_Combined.csv"
 df = pd.read_csv(file_path)
 
 # Define left and right sensor columns
