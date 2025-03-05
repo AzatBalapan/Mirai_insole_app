@@ -21,7 +21,7 @@ void setup() {
     Serial.begin(115200);
     
     // Wait for Serial Monitor
-    while (!Serial) delay(10);
+    //while (!Serial) delay(10);
     Serial.println("Initializing BNO055 Sensor with BLE...");
     
     // Initialize BNO055 Sensor
