@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miraitech - Smart Insoles</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #e0f2ff, #ffffff);
+            text-align: center;
+        }
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        .navbar.shrink {
+            padding: 10px 30px;
+        }
+        .navbar img {
+            height: 80px;
+            transition: all 0.3s ease;
+        }
+        .navbar.shrink img {
+            height: 40px;
+        }
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: black;
+            font-size: 16px;
+        }
+        .hero {
+            padding: 100px 20px;
+            margin-top: 120px;
+        }
+        .hero h1 {
+            font-size: 48px;
+            font-weight: bold;
+            color: #000;
+        }
+        .hero h1 span {
+            color: #007aff;
+        }
+        .hero p {
+            font-size: 20px;
+            color: #555;
+        }
+        .section {
+            padding: 50px 20px;
+            max-width: 1000px;
+            margin: auto;
+            text-align: left;
+        }
+        .section h2 {
+            text-align: center;
+            color: #007aff;
+        }
+        .cta-buttons {
+            margin-top: 20px;
+        }
+        .cta-buttons a {
+            text-decoration: none;
+            padding: 12px 25px;
+            margin: 10px;
+            border-radius: 25px;
+            font-size: 18px;
+            display: inline-block;
+        }
+        .learn-more {
+            background: #007aff;
+            color: white;
+        }
+        .pre-order {
+            border: 2px solid #007aff;
+            color: #007aff;
+        }
+        .product-image img {
+            width: 80%;
+            max-width: 600px;
+        }
+        .footer {
+            background: #f5f5f7;
+            padding: 40px 20px;
+            font-size: 14px;
+            color: #666;
+            text-align: left;
+        }
+        .footer .footer-links {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            max-width: 1000px;
+            margin: auto;
+        }
+        .footer .footer-links div {
+            margin: 10px;
+        }
+        .footer a {
+            text-decoration: none;
+            color: #007aff;
+        }
+        .highlight {
+            color: #007aff;
+        }
+    </style>
+    <script>
+        window.addEventListener("scroll", function() {
+            var navbar = document.querySelector(".navbar");
+            if (window.scrollY > 50) {
+                navbar.classList.add("shrink");
+            } else {
+                navbar.classList.remove("shrink");
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="navbar">
+        <img src="image_2024-11-17_21-52-39.png" alt="Miraitech Logo">
+        <div class="nav-links">
+            <a href="#">Home</a>
+            <a href="#about">About</a>
+            <a href="#technology">Technology</a>
+            <a href="#store">Store</a>
+            <a href="#support">Support</a>
+        </div>
+    </div>
+    <div class="hero">
+        <h1>Welcome to <span class="highlight">Miraitech</span></h1>
+        <p>Innovative smart insoles powered by TENG-based tactile sensors.</p>
+        <p>Detect walking patterns, anomalies, and asymmetry with precision.</p>
+    </div>
+    <div id="about" class="section">
+        <h2>About Miraitech</h2>
+        <p>Our mission is to create accessible, effective, and personalized solutions for rehabilitation and sports using AI and sensor technology.</p>
+        <p>We tackle the high cost and limited availability of rehabilitation solutions with our smart insoles, offering precise biomechanical gait analysis, AI-driven diagnostics, and rehabilitation acceleration.</p>
+    </div>
+    <div id="technology" class="section">
+        <h2>Technology & Achievements</h2>
+        <p><strong>Innovative Sensors:</strong> Our smart insoles integrate TENG & PENG-based wearable technology for real-time gait analysis.</p>
+        <p><strong>Patents & Research:</strong> 2 patents granted (2022), 2 pending (2024), and 14 Q1 research publications.</p>
+        <p><strong>Market Potential:</strong> The global market is valued at $3.4B (2024), projected to reach $5.4B by 2032.</p>
+        <p><strong>Partnerships:</strong> Collaborations with rehabilitation centers, clinics, and sports organizations to bring our technology to real-world applications.</p>
+    </div>
+    <div class="footer">
+        <div class="footer-links">
+            <div>
+                <strong>Shop and Learn</strong><br>
+                <a href="#">Store</a><br>
+                <a href="#">Features</a><br>
+                <a href="#">Technology</a><br>
+            </div>
+            <div>
+                <strong>About Miraitech</strong><br>
+                <a href="#about">Our Mission</a><br>
+                <a href="#">Contact Us</a><br>
+            </div>
+        </div>
+        <p>Copyright © 2025 Miraitech Inc. All rights reserved. <a href="#">Privacy Policy</a> | <a href="#">Terms of Use</a> | <a href="#">Site Map</a></p>
+    </div>
+</body>
+</html>
