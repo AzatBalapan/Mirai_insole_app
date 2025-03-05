@@ -65,58 +65,66 @@
             padding: 50px 20px;
             max-width: 1000px;
             margin: auto;
+            display: flex;
+            align-items: center;
             text-align: left;
         }
         .section h2 {
-            text-align: center;
             color: #007aff;
         }
-        .cta-buttons {
-            margin-top: 20px;
+        .text-content {
+            flex: 1;
+            padding-right: 20px;
         }
-        .cta-buttons a {
-            text-decoration: none;
-            padding: 12px 25px;
-            margin: 10px;
-            border-radius: 25px;
+        .image-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+        .icon-list {
+            list-style: none;
+            padding: 0;
+        }
+        .icon-list li {
+            display: flex;
+            align-items: center;
             font-size: 18px;
-            display: inline-block;
+            margin-bottom: 10px;
         }
-        .learn-more {
-            background: #007aff;
-            color: white;
-        }
-        .pre-order {
-            border: 2px solid #007aff;
-            color: #007aff;
-        }
-        .product-image img {
-            width: 80%;
-            max-width: 600px;
+        .icon-list img {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
         }
         .footer {
-            background: #f5f5f7;
+            background: #1a1a1a;
+            color: white;
             padding: 40px 20px;
             font-size: 14px;
-            color: #666;
-            text-align: left;
-        }
-        .footer .footer-links {
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-            max-width: 1000px;
-            margin: auto;
-        }
-        .footer .footer-links div {
-            margin: 10px;
+            text-align: center;
         }
         .footer a {
+            color: #007aff;
             text-decoration: none;
-            color: #007aff;
         }
-        .highlight {
-            color: #007aff;
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .footer-links div {
+            text-align: left;
+        }
+        .footer-links strong {
+            display: block;
+            margin-bottom: 10px;
         }
     </style>
     <script>
@@ -132,7 +140,7 @@
 </head>
 <body>
     <div class="navbar">
-        <img src="image_2024-11-17_21-52-39.png" alt="Miraitech Logo">
+        <img src="image_2024-11-17_21-55-32.png.png" alt="Miraitech Logo">
         <div class="nav-links">
             <a href="#">Home</a>
             <a href="#about">About</a>
@@ -146,17 +154,21 @@
         <p>Innovative smart insoles powered by TENG-based tactile sensors.</p>
         <p>Detect walking patterns, anomalies, and asymmetry with precision.</p>
     </div>
-    <div id="about" class="section">
-        <h2>About Miraitech</h2>
-        <p>Our mission is to create accessible, effective, and personalized solutions for rehabilitation and sports using AI and sensor technology.</p>
-        <p>We tackle the high cost and limited availability of rehabilitation solutions with our smart insoles, offering precise biomechanical gait analysis, AI-driven diagnostics, and rehabilitation acceleration.</p>
-    </div>
     <div id="technology" class="section">
-        <h2>Technology & Achievements</h2>
-        <p><strong>Innovative Sensors:</strong> Our smart insoles integrate TENG & PENG-based wearable technology for real-time gait analysis.</p>
-        <p><strong>Patents & Research:</strong> 2 patents granted (2022), 2 pending (2024), and 14 Q1 research publications.</p>
-        <p><strong>Market Potential:</strong> The global market is valued at $3.4B (2024), projected to reach $5.4B by 2032.</p>
-        <p><strong>Partnerships:</strong> Collaborations with rehabilitation centers, clinics, and sports organizations to bring our technology to real-world applications.</p>
+        <div class="text-content">
+            <h2>Biomechanical Sensors - Mirai Gait</h2>
+            <ul class="icon-list">
+                <li><img src="speed.png" alt="Feedback Icon"> Real-time gait assessment and instant feedback</li>
+                <li><img src="ai.png" alt="AI Icon"> AI-powered diagnostics for accurate analysis</li>
+                <li><img src="balance-ball.png" alt="Balance Icon"> Balance and stability insights</li>
+                <li><img src="gait.png" alt="Pressure Icon"> Pressure distribution monitoring</li>
+                <li><img src="foot.png" alt="Symmetry Icon"> Symmetry and coordination tracking</li>
+                <li><img src="analitic.png" alt="Steps Icon"> Step length and frequency data</li>
+            </ul>
+        </div>
+        <div class="image-container">
+            <img src="image.png" alt="Mirai Gait Biomechanical Sensors">
+        </div>
     </div>
     <div class="footer">
         <div class="footer-links">
