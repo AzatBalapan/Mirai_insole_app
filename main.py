@@ -118,10 +118,6 @@ sensor_values = {
         "sensor2": 0,
         "sensor3": 0,
         "sensor4": 0,
-        "interval1_ms": 0,
-        "interval2_ms": 0,
-        "interval3_ms": 0,
-        "interval4_ms": 0,
     },
     "ESP32_Sensor_2": {
         "timestamp": 0,
@@ -129,10 +125,6 @@ sensor_values = {
         "sensor2": 0,
         "sensor3": 0,
         "sensor4": 0,
-        "interval1_ms": 0,
-        "interval2_ms": 0,
-        "interval3_ms": 0,
-        "interval4_ms": 0,
     },
 }
 
@@ -245,45 +237,39 @@ async def imu_websocket_endpoint(ws: WebSocket):
 
 async def process_sensor_data(device_name, data_str):
     """
-    This function is invoked whenever notifications arrive from the BLE characteristic.
-    In the new ESP32 code, the data is JSON (like {"sensor1":..., "sensor2":..., ...}).
+    Parses BLE sensor data, skipping the first value (ESP ID),
+    and extracts only the sensor readings.
     """
     try:
-        # Attempt to decode JSON from the data string
-        data_json = json.loads(data_str)
+        if data_str.startswith("{"):  # Check if data is JSON
+            data_json = json.loads(data_str)
+        else:
+            # Handle comma-separated values and skip the first number
+            values = list(map(int, data_str.split(",")))
+            if len(values) < 5:  # Expecting at least 5 values: [ESP_ID, sensor1, sensor2, sensor3, sensor4]
+                print(f"Error: Incomplete data from {device_name}: {data_str}")
+                return
 
-        # Example fields: sensor1, sensor2, sensor3, sensor4, interval1_ms, ...
-        # This depends on what your ESP sends. Adjust accordingly:
-        s1 = data_json.get("sensor1", 0)
-        s2 = data_json.get("sensor2", 0)
-        s3 = data_json.get("sensor3", 0)
-        s4 = data_json.get("sensor4", 0)
-
-        i1 = data_json.get("interval1_ms", 0)
-        i2 = data_json.get("interval2_ms", 0)
-        i3 = data_json.get("interval3_ms", 0)
-        i4 = data_json.get("interval4_ms", 0)
+            # Extract only sensor values (skip first value)
+            data_json = {
+                "sensor1": values[1], "sensor2": values[2],
+                "sensor3": values[3], "sensor4": values[4]
+            }
 
         current_timestamp = time.time()
 
         with sensor_values_lock:
-            # Update the global dictionary with new values
             sensor_values[device_name]["timestamp"] = current_timestamp
-            sensor_values[device_name]["sensor1"] = s1
-            sensor_values[device_name]["sensor2"] = s2
-            sensor_values[device_name]["sensor3"] = s3
-            sensor_values[device_name]["sensor4"] = s4
-            sensor_values[device_name]["interval1_ms"] = i1
-            sensor_values[device_name]["interval2_ms"] = i2
-            sensor_values[device_name]["interval3_ms"] = i3
-            sensor_values[device_name]["interval4_ms"] = i4
+            sensor_values[device_name]["sensor1"] = data_json["sensor1"]
+            sensor_values[device_name]["sensor2"] = data_json["sensor2"]
+            sensor_values[device_name]["sensor3"] = data_json["sensor3"]
+            sensor_values[device_name]["sensor4"] = data_json["sensor4"]
 
-        # Debug print
-        print(f"[{device_name}] => "
-              f"sensor1={s1}, sensor2={s2}, sensor3={s3}, sensor4={s4}, "
-              f"i1={i1}, i2={i2}, i3={i3}, i4={i4}")
+        print(f"[{device_name}] => sensor1={data_json['sensor1']}, sensor2={data_json['sensor2']}, "
+              f"sensor3={data_json['sensor3']}, sensor4={data_json['sensor4']}")
+
     except json.JSONDecodeError:
-        print(f"Warning: Received non-JSON data from {device_name}: {data_str}")
+        print(f"Warning: Received invalid data format from {device_name}: {data_str}")
     except Exception as e:
         print(f"Error processing data from {device_name}: {e}")
 
@@ -379,8 +365,8 @@ def run_ble_client():
 
 async def synchronized_data_collector():
     """
-    Example of a "synchronized" data collector that can record from both devices
-    in a time-synchronized fashion. Adjust as needed.
+    Waits until both sensors have new data before recording to avoid desynchronization.
+    Records only sensor1, sensor2, sensor3, and sensor4 values.
     """
     global last_recorded_timestamp
     while True:
@@ -388,8 +374,7 @@ async def synchronized_data_collector():
             ts1 = sensor_values["ESP32_Sensor_1"]["timestamp"]
             ts2 = sensor_values["ESP32_Sensor_2"]["timestamp"]
 
-            # If both new timestamps are greater than the last saved,
-            # we consider them a new pair of readings for potential logging
+            # Ensure we have new data from both sensors before recording
             if ts1 > last_recorded_timestamp and ts2 > last_recorded_timestamp:
                 entry_1 = {
                     "timestamp": ts1,
@@ -397,10 +382,6 @@ async def synchronized_data_collector():
                     "sensor2": sensor_values["ESP32_Sensor_1"]["sensor2"],
                     "sensor3": sensor_values["ESP32_Sensor_1"]["sensor3"],
                     "sensor4": sensor_values["ESP32_Sensor_1"]["sensor4"],
-                    "interval1_ms": sensor_values["ESP32_Sensor_1"]["interval1_ms"],
-                    "interval2_ms": sensor_values["ESP32_Sensor_1"]["interval2_ms"],
-                    "interval3_ms": sensor_values["ESP32_Sensor_1"]["interval3_ms"],
-                    "interval4_ms": sensor_values["ESP32_Sensor_1"]["interval4_ms"],
                 }
                 entry_2 = {
                     "timestamp": ts2,
@@ -408,18 +389,16 @@ async def synchronized_data_collector():
                     "sensor2": sensor_values["ESP32_Sensor_2"]["sensor2"],
                     "sensor3": sensor_values["ESP32_Sensor_2"]["sensor3"],
                     "sensor4": sensor_values["ESP32_Sensor_2"]["sensor4"],
-                    "interval1_ms": sensor_values["ESP32_Sensor_2"]["interval1_ms"],
-                    "interval2_ms": sensor_values["ESP32_Sensor_2"]["interval2_ms"],
-                    "interval3_ms": sensor_values["ESP32_Sensor_2"]["interval3_ms"],
-                    "interval4_ms": sensor_values["ESP32_Sensor_2"]["interval4_ms"],
                 }
+
                 with recording_lock:
                     if is_recording:
                         current_recording_1.append(entry_1)
                         current_recording_2.append(entry_2)
+
                 last_recorded_timestamp = max(ts1, ts2)
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.1)  # Polling interval
 
 
 # ------------------------ FastAPI Routes ------------------------ #

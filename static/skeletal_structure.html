@@ -30,8 +30,6 @@
             <label>Foot Angle: <input type="range" id="foot" min="-90" max="90" value="0"></label>
         </div>
         <div class="control-group">
-            <label>Second Hip Angle: <input type="range" id="hip2" min="-90" max="90" value="0"></label>
-            <label>Second Knee Angle: <input type="range" id="knee2" min="-90" max="90" value="0"></label>
             <label>Second Foot Angle: <input type="range" id="foot2" min="-90" max="90" value="0"></label>
         </div>
     </div>
@@ -42,13 +40,13 @@
         const hipInput = document.getElementById("hip");
         const kneeInput = document.getElementById("knee");
         const footInput = document.getElementById("foot");
-        const hip2Input = document.getElementById("hip2");
-        const knee2Input = document.getElementById("knee2");
         const foot2Input = document.getElementById("foot2");
 
-        function drawSkeletal(hipAngle, kneeAngle, footAngle, hip2Angle, knee2Angle, foot2Angle) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let secondHipAngle = 0; // Controlled by BLE data from Sensor 1
+        let secondKneeAngle = 0; // Controlled by BLE data from Sensor 2
 
+        function drawSkeletal(hipAngle, kneeAngle, footAngle, foot2Angle, hip2Angle, knee2Angle) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             const hip = { x: 200, y: 200 };
             ctx.fillStyle = "gray";
             ctx.beginPath();
@@ -110,14 +108,26 @@
         function update() {
             drawSkeletal(
                 parseInt(hipInput.value), parseInt(kneeInput.value), parseInt(footInput.value),
-                parseInt(hip2Input.value), parseInt(knee2Input.value), parseInt(foot2Input.value)
+                parseInt(foot2Input.value), secondHipAngle, secondKneeAngle
             );
         }
 
-        [hipInput, kneeInput, footInput, hip2Input, knee2Input, foot2Input].forEach(input =>
+        [hipInput, kneeInput, footInput, foot2Input].forEach(input =>
             input.addEventListener("input", update));
 
         update();
+
+        // WebSocket connection to receive roll values from Python script
+        const socket = new WebSocket("ws://localhost:8765");
+        socket.onmessage = function(event) {
+            const [sensor, value] = event.data.split(":");
+            if (sensor === "SENSOR1") {
+                secondHipAngle = parseInt(value); // Assign roll to hip2 angle
+            } else if (sensor === "SENSOR2") {
+                secondKneeAngle = parseInt(value); // Assign roll to knee2 angle
+            }
+            update();
+        };
     </script>
 </body>
 </html>
