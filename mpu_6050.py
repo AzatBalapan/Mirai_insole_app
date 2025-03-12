@@ -5,73 +5,121 @@ import threading
 import webbrowser
 from bleak import BleakClient, BleakScanner
 
-# UUIDs for the first ESP32 (must match your ESP32 service & characteristic UUIDs)
-SERVICE_UUID_1 = "4fafc201-1fb5-459e-8fcc-c5c9c331914c"
-CHARACTERISTIC_UUID_1 = "beb5483e-36e1-4688-b7f5-ea07361b26a9"
+#####################################
+# BLE UUIDs from the Arduino code
+#####################################
+SERVICE_UUID = "4fafc202-1fb5-459e-8fcc-c5c9c331914c"
+DATA_CHARACTERISTIC_UUID = "beb5483f-36e1-4688-b7f5-ea07361b26a9"
 
-# UUIDs for the second ESP32
-SERVICE_UUID_2 = "4fafc202-1fb5-459e-8fcc-c5c9c331914c"  # Different service UUID
-CHARACTERISTIC_UUID_2 = "beb5483f-36e1-4688-b7f5-ea07361b26a9"  # Different characteristic UUID
+#####################################
+# Device Names
+#####################################
+DEVICE_1_NAME = "ESP32_Sensor_1"
+DEVICE_2_NAME = "ESP32_Sensor_2"
 
-# Path to HTML file
 HTML_FILE_PATH = "static\\skeletal_structure.html"
 
+
 def open_html():
+    """Open the local HTML file in the browser."""
     webbrowser.open(HTML_FILE_PATH)
 
-async def find_esp32(device_name):
-    print(f"Scanning for {device_name} BLE device...")
+
+async def find_esp32(device_name: str):
+    """Scan for a device by its exact name, return its address if found."""
+    print(f"Scanning for {device_name}...")
     devices = await BleakScanner.discover()
-
-    for device in devices:
-        if device_name in device.name:  # Adjust based on ESP32 BLE name
-            print(f"✅ Found {device_name}: {device.name} [{device.address}]")
-            return device.address
-
+    for d in devices:
+        if d.name == device_name:
+            print(f"✅ Found {device_name} at {d.address}")
+            return d.address
     print(f"❌ {device_name} not found. Make sure it's advertising.")
     return None
 
-async def ble_to_websocket(websocket):
-    esp32_address_1 = await find_esp32("ESP32_MPU6050")
-    esp32_address_2 = await find_esp32("ESP32_MPU6050_2")
 
-    if not esp32_address_1 or not esp32_address_2:
-        return
+async def read_sensor_data_loop(client: BleakClient, device_name: str, sensor_id: int, websocket):
+    """
+    Continuously read the data characteristic from the device and
+    forward it over the WebSocket every ~0.01 seconds.
 
-    async with BleakClient(esp32_address_1) as client1, BleakClient(esp32_address_2) as client2:
-        print(f"🔗 Connected to {esp32_address_1} and {esp32_address_2}")
-
-        async def notification_handler_1(sender, data):
-            if len(data) == 6:  # Ensure 6 bytes are received
-                roll, pitch, yaw = struct.unpack('<hhh', data)  # Little Endian
-                print(f"📡 Sending Roll from Sensor 1: {roll} to WebSocket")
-                await websocket.send(f"SENSOR1:{roll}")  # Send roll as string with identifier
-
-        async def notification_handler_2(sender, data):
-            if len(data) == 6:  # Ensure 6 bytes are received
-                roll, pitch, yaw = struct.unpack('<hhh', data)  # Little Endian
-                print(f"📡 Sending Roll from Sensor 2: {roll} to WebSocket")
-                await websocket.send(f"SENSOR2:{roll}")  # Send roll as string with identifier
-
-        await client1.start_notify(CHARACTERISTIC_UUID_1, notification_handler_1)
-        await client2.start_notify(CHARACTERISTIC_UUID_2, notification_handler_2)
-        print("✅ Listening for BLE notifications... Press Ctrl+C to stop.")
-
+    The new Arduino code sends 11 short values = 22 bytes total.
+    """
+    while True:
         try:
-            while True:
-                await asyncio.sleep(1)  # Keep script running
-        except KeyboardInterrupt:
-            print("🔴 Stopping BLE clients...")
-            await client1.stop_notify(CHARACTERISTIC_UUID_1)
-            await client2.stop_notify(CHARACTERISTIC_UUID_2)
+            raw_data = await client.read_gatt_char(DATA_CHARACTERISTIC_UUID)
+            # Expect 22 bytes: 11 * 2
+            if len(raw_data) == 22:
+                # Unpack 11 short values, little-endian
+                # (sensor1, sensor2, sensor3, sensor4, avg1, avg2, avg3, avg4, angle1, angle2, angle3)
+                data_tuple = struct.unpack("<hhhhhhhhhhh", raw_data)
+                s1, s2, s3, s4, avg1, avg2, avg3, avg4, ang1, ang2, ang3 = data_tuple
+
+                # Build a message string
+                msg = (
+                    f"SENSOR{sensor_id} => "
+                    f"s1:{s1}, s2:{s2}, s3:{s3}, s4:{s4}, "
+                    f"avg1:{avg1}, avg2:{avg2}, avg3:{avg3}, avg4:{avg4}, "
+                    f"ang1:{ang1}, ang2:{ang2}, ang3:{ang3}"
+                )
+                print(f"📡 {device_name}: {msg}")
+
+                # Send over WebSocket
+                await websocket.send(msg)
+            else:
+                print(f"⚠ {device_name} returned {len(raw_data)} bytes (expected 22). Ignoring.")
+        except Exception as e:
+            print(f"Read error from {device_name}: {e}")
+            break  # Exit loop on read error
+
+        await asyncio.sleep(0.01)  # Poll interval
+
+
+async def connect_and_poll(device_name: str, websocket, sensor_id: int):
+    """
+    Finds the device, connects via BLE, then polls for data in a loop.
+    """
+    address = await find_esp32(device_name)
+    if not address:
+        return  # Could not find device
+
+    client = BleakClient(address)
+    try:
+        print(f"🔗 Connecting to {device_name} ({address})...")
+        await client.connect()
+
+        # Now that we're connected, read in a loop
+        await read_sensor_data_loop(client, device_name, sensor_id, websocket)
+
+    except Exception as e:
+        print(f"❌ Connection error with {device_name}: {e}")
+    finally:
+        if client.is_connected:
+            print(f"🔴 Disconnecting from {device_name}")
+            await client.disconnect()
+
+
+async def ble_to_websocket(websocket):
+    """
+    Called once per WebSocket client connection. We spawn tasks to connect to
+    two ESP32 devices and poll them in parallel.
+    """
+    tasks = [
+        asyncio.create_task(connect_and_poll(DEVICE_1_NAME, websocket, 1)),
+        asyncio.create_task(connect_and_poll(DEVICE_2_NAME, websocket, 2))
+    ]
+    await asyncio.gather(*tasks)  # Wait for both tasks
+
 
 async def websocket_server():
+    """Start a WebSocket server at ws://localhost:8765."""
     async with websockets.serve(ble_to_websocket, "localhost", 8765):
-        print("🚀 WebSocket Server started at ws://localhost:8765")
-        await asyncio.Future()  # Keep the server running
+        print("🚀 WebSocket server running at ws://localhost:8765")
+        await asyncio.Future()  # Run forever
 
-# Open HTML file in browser
-threading.Thread(target=open_html, daemon=True).start()
 
-# Run WebSocket Server
-asyncio.run(websocket_server())
+if __name__ == "__main__":
+    # (Optional) automatically open the local HTML file
+    threading.Thread(target=open_html, daemon=True).start()
+
+    # Start the WebSocket server
+    asyncio.run(websocket_server())
