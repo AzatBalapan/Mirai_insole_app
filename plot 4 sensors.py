@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import RectangleSelector
 
 # File paths (update these as needed)
-file1_path = "recordings/male with autistic desorder/patient1pat1_26_02_S36_H165_W56_M_Dev1.csv"
-file2_path = "recordings/male with autistic desorder/patient1pat1_26_02_S36_H165_W56_M_Dev2.csv"
+file1_path = "recordings/YersaiynKasenov_S43_H175_W76_M_Dev1.csv"
+file2_path = "recordings/YersaiynKasenov_S43_H175_W76_M_Dev2.csv"
 
 # Load data
 df1 = pd.read_csv(file1_path)

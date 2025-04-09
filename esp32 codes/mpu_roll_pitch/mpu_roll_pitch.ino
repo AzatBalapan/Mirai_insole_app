@@ -83,57 +83,19 @@ static unsigned long prevMicros = 0;
 static short lastAngles[3] = {0,0,0};
 
 // -----------------------------------------
-// 3) BLE: We'll send 11 shorts = 22 bytes
-//    Format: [s1, s2, s3, s4, avg1, avg2, avg3, avg4, roll, pitch, yaw]
+// 3) BLE
 // -----------------------------------------
 #define SERVICE_UUID             "4fafc202-1fb5-459e-8fcc-c5c9c331914c"
-#define CHARACTERISTIC_DATA_UUID "beb5483f-36e1-4688-b7f5-ea07361b26a9"
+#define CHARACTERISTIC_DATA_UUID "beb5483f-36e1-4688-b7f5-ea07361b26a8"
 
-#define NUM_VALUES  11
-#define BUFFER_SIZE (NUM_VALUES*2)  // 22 bytes
-static uint8_t dataBuffer[BUFFER_SIZE];
-
+// We'll send ASCII data (CSV) as in your first example
 BLECharacteristic* pDataCharacteristic = nullptr;
 
-// -----------------------------------------
-// DataCharacteristicCallbacks: onRead()
-// -----------------------------------------
-class DataCharacteristicCallbacks : public BLECharacteristicCallbacks {
-  void onRead(BLECharacteristic* pCharacteristic) override {
-    // The central is requesting data:
-    // Pack 4 raw sensor values, 4 averages, 3 angles => total 11 shorts
+// (Optional) A fixed-size buffer for sending data
+// Make it large enough for your CSV/JSON string
+#define DATA_BUFFER_SIZE 100
+static char dataString[DATA_BUFFER_SIZE];
 
-    int idx = 0;
-    // 1) 4 raw sensor values
-    for(int i=0; i<4; i++){
-      short val = lastSensorValues[i];
-      dataBuffer[idx++] = val & 0xFF;
-      dataBuffer[idx++] = (val >> 8) & 0xFF;
-    }
-    // 2) 4 averages
-    for(int i=0; i<4; i++){
-      short val = lastAverages[i];
-      dataBuffer[idx++] = val & 0xFF;
-      dataBuffer[idx++] = (val >> 8) & 0xFF;
-    }
-    // 3) 3 angles (roll, pitch, yaw)
-    for(int i=0; i<3; i++){
-      short val = lastAngles[i];
-      dataBuffer[idx++] = val & 0xFF;
-      dataBuffer[idx++] = (val >> 8) & 0xFF;
-    }
-
-    // Set the characteristic data
-    pCharacteristic->setValue(dataBuffer, BUFFER_SIZE);
-
-    // Debug
-    Serial.println("[onRead] Sent 4 sensor, 4 avg, 3 angles (11 shorts / 22 bytes)");
-  }
-};
-
-// -----------------------------------------
-// Setup
-// -----------------------------------------
 void setup()
 {
   Serial.begin(115200);
@@ -155,15 +117,19 @@ void setup()
   Serial.println("MPU6050 connected!");
 
   // 3) Initialize BLE
-  BLEDevice::init("ESP32_Sensor_1"); // Device name
+  BLEDevice::init("MPU_Sensor_1"); // Device name
   BLEServer* pServer = BLEDevice::createServer();
   
   BLEService* pService = pServer->createService(SERVICE_UUID);
+  
+  // Use NOTIFY property (like the first code)
   pDataCharacteristic = pService->createCharacteristic(
     CHARACTERISTIC_DATA_UUID,
-    BLECharacteristic::PROPERTY_READ
+    BLECharacteristic::PROPERTY_READ |   // you can keep READ if you want
+    BLECharacteristic::PROPERTY_NOTIFY
   );
-  pDataCharacteristic->setCallbacks(new DataCharacteristicCallbacks());
+  // Important for notifications
+  pDataCharacteristic->addDescriptor(new BLE2902());
 
   pService->start();
 
@@ -174,14 +140,9 @@ void setup()
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
 
-  Serial.println("ESP32 is now advertising - 4 analog + MPU angles on demand...");
+  Serial.println("ESP32 is now advertising - 4 analog + MPU angles...");
 }
 
-// -----------------------------------------
-// Loop: 1) read 4 analog sensors + ring buffers
-//       2) read MPU, update complementary filter
-//       3) store final data in last* arrays
-// -----------------------------------------
 void loop()
 {
   // -------------------------------------
@@ -219,7 +180,7 @@ void loop()
     avg4 = (short)((count4 < MAX_READINGS) ? (sum4 / (float)count4) : (sum4 / (float)MAX_READINGS));
   }
 
-  // Store for onRead()
+  // Store for reference (if you still need them):
   lastSensorValues[0] = val1;
   lastSensorValues[1] = val2;
   lastSensorValues[2] = val3;
@@ -233,7 +194,6 @@ void loop()
   // -------------------------------------
   // (B) Read MPU6050, update complementary filter
   // -------------------------------------
-  // 1 sample per loop, you can do more if needed
   int16_t ax, ay, az, gx, gy, gz;
   mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
@@ -259,12 +219,12 @@ void loop()
   float accPitch = atan(-accX / sqrtf(accY*accY + accZ*accZ)) * 180.0f / PI;
 
   // Integrate gyro for roll/pitch
-  roll_cf  += gyroX * dt;  // deg
-  pitch_cf += gyroY * dt;  // deg
+  roll_cf  += gyroX * dt;  
+  pitch_cf += gyroY * dt;  
 
   // Complementary filter
-  roll_cf  = ALPHA*(roll_cf)  + (1.0f-ALPHA)*(accRoll);
-  pitch_cf = ALPHA*(pitch_cf) + (1.0f-ALPHA)*(accPitch);
+  roll_cf  = ALPHA * roll_cf  + (1.0f-ALPHA)*(accRoll);
+  pitch_cf = ALPHA * pitch_cf + (1.0f-ALPHA)*(accPitch);
 
   // Yaw from gyroZ integration only
   yaw_cf   += gyroZ * dt;
@@ -273,10 +233,27 @@ void loop()
   lastAngles[0] = (short)roll_cf;
   lastAngles[1] = (short)pitch_cf;
   lastAngles[2] = (short)yaw_cf;
+  short sensor_name = 3;
+  // -------------------------------------
+  // (C) Send data via BLE NOTIFY (like your first code)
+  // -------------------------------------
+  // Build a CSV line: 4 raw, 4 avg, 3 angles => total 11 fields
+  // Increase DATA_BUFFER_SIZE if needed
+  snprintf(dataString, DATA_BUFFER_SIZE,
+           "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+           sensor_name, val1, val2, val3, val4, 
+           avg1, avg2, avg3, avg4,
+           lastAngles[0], lastAngles[1], lastAngles[2]);
 
-  // Optionally debug:
-  // Serial.printf("val1=%d avg1=%d | roll=%.1f pitch=%.1f yaw=%.1f\n",
-  //               val1, avg1, roll_cf, pitch_cf, yaw_cf);
+  // Terminate the string
+  dataString[DATA_BUFFER_SIZE - 1] = '\0';
+
+  // Update BLE characteristic and notify
+  pDataCharacteristic->setValue((uint8_t*)dataString, strlen(dataString));
+  pDataCharacteristic->notify();
+
+  // Debug (optional)
+//  Serial.println(dataString);
 
   delay(10);
 }
